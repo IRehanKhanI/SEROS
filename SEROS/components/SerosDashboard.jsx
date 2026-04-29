@@ -8,10 +8,9 @@ import {
   TextInput,
   ActivityIndicator,
   Dimensions,
-  Alert,
 } from "react-native";
 
-const { width } = Dimensions.get("window");
+// const { width } = Dimensions.get("window");
 
 // --- THEME & DATA ---
 const theme = {
