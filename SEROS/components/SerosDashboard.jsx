@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
   TextInput,
   ActivityIndicator,
-  Dimensions,
+  // s
 } from "react-native";
 
 // const { width } = Dimensions.get("window");
