@@ -11,6 +11,7 @@ export default function RootLayout() {
           tabBarIcon: ({ color }) => (
             <Ionicons name="home" size={24} color={color} />
           ),
+          headerShown: false,
         }}
       />
       <Tabs.Screen
@@ -20,6 +21,7 @@ export default function RootLayout() {
           tabBarIcon: ({ color }) => (
             <Ionicons name="settings" size={24} color={color} />
           ),
+          headerShown: false,
         }}
       />
       <Tabs.Screen
@@ -29,6 +31,7 @@ export default function RootLayout() {
           tabBarIcon: ({ color }) => (
             <Ionicons name="person" size={24} color={color} />
           ),
+          headerShown: false,
         }}
       />
       <Tabs.Screen

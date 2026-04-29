@@ -1,15 +1,10 @@
-import { Text, View } from "react-native";
+import SerosDashboard from "../components/SerosDashboard.jsx";
+import { View } from "react-native";
 
-export default function RehanScreen() {
+export default function Home() {
   return (
-    <View
-      style={{
-        flex: 1,
-        justifyContent: "center",
-        alignItems: "center",
-      }}
-    >
-      <Text>Rehan</Text>
+    <View style={{ flex: 1 }}>
+      <SerosDashboard />
     </View>
   );
 }
