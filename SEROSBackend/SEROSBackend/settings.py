@@ -30,18 +30,21 @@ SECRET_KEY = 'django-insecure-lvifp7qgp^qu++sf2f%@amsfot1(=86z+l0ibr^e77f*=pl&+z
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['*']
 
 
 # Application definition
 
 INSTALLED_APPS = [
+    'daphne',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'channels',
+    'Home',
 ]
 
 MIDDLEWARE = [
@@ -71,7 +74,13 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'SEROSBackend.wsgi.application'
+ASGI_APPLICATION = 'SEROSBackend.asgi.application'
+
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels.layers.InMemoryChannelLayer"
+    }
+}
 
 
 # Database

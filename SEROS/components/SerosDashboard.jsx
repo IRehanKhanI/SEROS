@@ -124,6 +124,7 @@ export default function SerosDashboard() {
             "overview",
             "analytics",
             "predict",
+            "assistant",
             "devices",
             "heatmap",
             "calculator",
@@ -157,6 +158,7 @@ export default function SerosDashboard() {
         {activeTab === "overview" && <OverviewTab />}
         {activeTab === "analytics" && <AnalyticsTab />}
         {activeTab === "predict" && <PredictTab />}
+        {activeTab === "assistant" && <AssistantTab />}
         {activeTab === "devices" && <DevicesTab />}
         {activeTab === "heatmap" && <HeatmapTab />}
         {activeTab === "calculator" && <CalculatorTab />}
@@ -166,6 +168,139 @@ export default function SerosDashboard() {
 }
 
 // --- SUB-VIEWS (TABS) ---
+
+function AssistantTab() {
+  const [messages, setMessages] = useState([
+    {
+      role: "ai",
+      content:
+        "Hello! I am Gemma, your SEROS Energy Assistant. You can ask me about energy spikes, cost-saving estimates, or anomaly reports.",
+    },
+  ]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const sendMessage = async () => {
+    if (!input.trim()) return;
+    const userMsg = input.trim();
+    setMessages((prev) => [...prev, { role: "user", content: userMsg }]);
+    setInput("");
+    setLoading(true);
+
+    try {
+      const response = await fetch(
+        "http://10.1.12.187:8000/api/generate-chat/",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt: userMsg }),
+        },
+      );
+      const data = await response.json();
+
+      if (data.status === "success") {
+        setMessages((prev) => [
+          ...prev,
+          { role: "ai", content: data.response },
+        ]);
+      } else {
+        setMessages((prev) => [
+          ...prev,
+          { role: "ai", content: `Error: ${data.message}` },
+        ]);
+      }
+    } catch (e) {
+      setMessages((prev) => [
+        ...prev,
+        { role: "ai", content: `Network Error: Could not reach backend.` },
+      ]);
+    }
+    setLoading(false);
+  };
+
+  return (
+    <View style={{ flex: 1 }}>
+      <View style={styles.pageHeader}>
+        <Text style={styles.pageTitle}>AI Chat Assistant</Text>
+        <Text style={styles.pageSub}>
+          Powered by Gemma-4:4b for energy insights
+        </Text>
+      </View>
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: "rgba(255,255,255,0.02)",
+          borderRadius: 12,
+          padding: 10,
+          minHeight: 300,
+          marginBottom: 16,
+        }}
+      >
+        <ScrollView style={{ flex: 1 }}>
+          {messages.map((msg, idx) => (
+            <View
+              key={idx}
+              style={{
+                alignSelf: msg.role === "ai" ? "flex-start" : "flex-end",
+                backgroundColor:
+                  msg.role === "ai"
+                    ? "rgba(159,211,86,0.1)"
+                    : "rgba(255,159,28,0.2)",
+                borderWidth: 1,
+                borderColor:
+                  msg.role === "ai"
+                    ? "rgba(159,211,86,0.3)"
+                    : "rgba(255,159,28,0.4)",
+                padding: 12,
+                borderRadius: 8,
+                marginBottom: 10,
+                maxWidth: "85%",
+              }}
+            >
+              <Text style={{ color: theme.text }}>{msg.content}</Text>
+            </View>
+          ))}
+          {loading && (
+            <View style={{ alignSelf: "flex-start", padding: 12 }}>
+              <ActivityIndicator color={theme.yg} />
+            </View>
+          )}
+        </ScrollView>
+        <View style={{ flexDirection: "row", marginTop: 10 }}>
+          <TextInput
+            style={{
+              flex: 1,
+              backgroundColor: "rgba(0,0,0,0.5)",
+              borderWidth: 1,
+              borderColor: theme.border,
+              borderRadius: 8,
+              paddingHorizontal: 12,
+              color: theme.text,
+              height: 44,
+            }}
+            placeholder="Ask Gemma about energy usage..."
+            placeholderTextColor={theme.textMuted}
+            value={input}
+            onChangeText={setInput}
+            onSubmitEditing={sendMessage}
+          />
+          <TouchableOpacity
+            style={{
+              backgroundColor: theme.amber,
+              justifyContent: "center",
+              paddingHorizontal: 16,
+              borderRadius: 8,
+              marginLeft: 10,
+            }}
+            onPress={sendMessage}
+          >
+            <Text style={{ color: theme.bg, fontWeight: "bold" }}>Send</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </View>
+  );
+}
 
 function OverviewTab() {
   const [day, setDay] = useState(0);

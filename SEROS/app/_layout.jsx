@@ -1,45 +1,52 @@
+import React from "react";
 import { Tabs } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import BackendStatus from "../components/BackendStatus";
 
 export default function RootLayout() {
   return (
-    <Tabs>
+    <Tabs
+      screenOptions={{
+        headerRight: () => <BackendStatus />,
+        headerStyle: { backgroundColor: '#0a0f1e' },
+        headerTintColor: '#fff',
+        tabBarStyle: { backgroundColor: '#0a0f1e', borderTopColor: '#1f2937' },
+        tabBarActiveTintColor: '#10b981',
+      }}
+    >
       <Tabs.Screen
         name="index"
         options={{
-          title: "Ashvek",
+          title: "Camera",
           tabBarIcon: ({ color }) => (
-            <Ionicons name="home" size={24} color={color} />
+            <Ionicons name="camera" size={24} color={color} />
           ),
-          headerShown: false,
         }}
       />
       <Tabs.Screen
-        name="marshal"
+        name="dashboard"
         options={{
-          title: "Marshal",
+          title: "Dashboard",
           tabBarIcon: ({ color }) => (
-            <Ionicons name="settings" size={24} color={color} />
+            <Ionicons name="grid" size={24} color={color} />
           ),
-          headerShown: false,
         }}
       />
       <Tabs.Screen
-        name="rehan"
+        name="analytics"
         options={{
-          title: "Rehan",
+          title: "Analytics",
           tabBarIcon: ({ color }) => (
-            <Ionicons name="person" size={24} color={color} />
+            <Ionicons name="stats-chart" size={24} color={color} />
           ),
-          headerShown: false,
         }}
       />
       <Tabs.Screen
-        name="rylan"
+        name="iot"
         options={{
-          title: "Rylan",
+          title: "Devices",
           tabBarIcon: ({ color }) => (
-            <Ionicons name="star" size={24} color={color} />
+            <Ionicons name="hardware-chip" size={24} color={color} />
           ),
         }}
       />
