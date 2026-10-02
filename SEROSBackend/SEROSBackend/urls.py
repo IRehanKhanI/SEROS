@@ -41,6 +41,10 @@ urlpatterns = [
     path('api/greeting/', views.smart_greeting, name='smart_greeting'),
     path('api/generate-chat/', views.generate_chat, name='generate_chat'),
     path('api/detect/', views.detect_occupancy, name='detect_occupancy'),
+    path('api/analytics/', views.get_analytics_data, name='get_analytics_data'),
+    path('api/historical-usage/', views.get_historical_usage, name='get_historical_usage'),
+    path('api/ml-predict/', views.ml_predict, name='ml_predict'),
+    path('api/weather/', views.current_weather, name='current_weather'),
     path('api/ping/', views.ping, name='ping'),
     path('', views.ping, name='root_ping'),
 ]

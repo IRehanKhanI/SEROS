@@ -7,23 +7,31 @@ import {
   TouchableOpacity,
   TextInput,
   ActivityIndicator,
-  // s
+  Dimensions,
 } from "react-native";
+import { BarChart, PieChart } from "react-native-chart-kit";
+import { BACKEND_URL } from "../constants/config";
+
+const screenWidth = Dimensions.get("window").width;
 
 // const { width } = Dimensions.get("window");
 
 // --- THEME & DATA ---
 const theme = {
-  amber: "#ff9f1c",
-  yg: "#9fd356",
+  amber: "#8BA0A7", // Slate blue for accents
+  yg: "#AEEA9A",    // Sage green for active/success
   scarlet: "#df2935",
-  bg: "#080a0e",
-  text: "#f0ede8",
-  textMuted: "#7a7870",
-  glassBg: "rgba(20,24,35,0.8)",
-  border: "rgba(255,255,255,0.08)",
+  bg: "#1a1d1f",    // Dark charcoal base
+  text: "#f0f2f0",
+  textPri: "#f0f2f0",
+  textSec: "#8BA0A7",
+  textMuted: "#8BA0A7",
+  card: "rgba(114,110,112,0.15)", // Charcoal glass
+  glassBg: "rgba(114,110,112,0.15)",
+  border: "rgba(174,234,154,0.15)", // Sage green glass border
   glassHighlight: "rgba(255,255,255,0.05)",
 };
+
 
 const devicesData = [
   {
@@ -98,6 +106,24 @@ const hourDataSets = [
 // --- MAIN COMPONENT ---
 export default function SerosDashboard() {
   const [activeTab, setActiveTab] = useState("overview");
+  const [backendData, setBackendData] = useState(null);
+
+  React.useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/analytics/`);
+        const json = await res.json();
+        if (json.status === "success") {
+          setBackendData(json);
+        }
+      } catch (e) {
+        console.log("Analytics fetch error:", e);
+      }
+    };
+    fetchData();
+    const intv = setInterval(fetchData, 5000);
+    return () => clearInterval(intv);
+  }, []);
 
   return (
     <View style={styles.container}>
@@ -109,7 +135,7 @@ export default function SerosDashboard() {
         </View>
         <View style={styles.statusWrap}>
           <View style={styles.pulse} />
-          <Text style={styles.statusText}>Live</Text>
+          <Text style={styles.statusText}>Live Database Linked</Text>
         </View>
       </View>
 
@@ -155,8 +181,8 @@ export default function SerosDashboard() {
         style={styles.mainContent}
         contentContainerStyle={{ paddingBottom: 40 }}
       >
-        {activeTab === "overview" && <OverviewTab />}
-        {activeTab === "analytics" && <AnalyticsTab />}
+        {activeTab === "overview" && <OverviewTab backendData={backendData} />}
+        {activeTab === "analytics" && <AnalyticsTab backendData={backendData} />}
         {activeTab === "predict" && <PredictTab />}
         {activeTab === "assistant" && <AssistantTab />}
         {activeTab === "devices" && <DevicesTab />}
@@ -189,7 +215,7 @@ function AssistantTab() {
 
     try {
       const response = await fetch(
-        "http://10.1.12.187:8000/api/generate-chat/",
+        `${BACKEND_URL}/api/generate-chat/`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -244,13 +270,13 @@ function AssistantTab() {
                 alignSelf: msg.role === "ai" ? "flex-start" : "flex-end",
                 backgroundColor:
                   msg.role === "ai"
-                    ? "rgba(159,211,86,0.1)"
-                    : "rgba(255,159,28,0.2)",
+                    ? "rgba(174,234,154,0.1)"
+                    : "rgba(139,160,167,0.2)",
                 borderWidth: 1,
                 borderColor:
                   msg.role === "ai"
-                    ? "rgba(159,211,86,0.3)"
-                    : "rgba(255,159,28,0.4)",
+                    ? "rgba(174,234,154,0.3)"
+                    : "rgba(139,160,167,0.4)",
                 padding: 12,
                 borderRadius: 8,
                 marginBottom: 10,
@@ -302,151 +328,189 @@ function AssistantTab() {
   );
 }
 
-function OverviewTab() {
+function OverviewTab({ backendData }) {
   const [day, setDay] = useState(0);
-  const data = hourDataSets[day];
-  const total = data.reduce((a, b) => a + b, 0);
-  const peak = Math.max(...data);
-  const waste =
-    data.slice(0, 6).reduce((a, b) => a + b, 0) +
-    data.slice(18).reduce((a, b) => a + b, 0);
+  
+  const liveDraw = backendData?.live_power_draw_watts || 0;
+  const activeCount = backendData?.active_devices?.length || 0;
+  const totalKwh = backendData?.total_kwh_consumed || 0;
+  const rsSaved = backendData?.rs_saved || 0;
+  const hoursUnused = backendData?.hours_unused || 0;
+  
+  const chartData = {
+    labels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Today"],
+    datasets: [{ data: backendData?.daily_kwh || [0,0,0,0,0,0,0] }]
+  };
 
   return (
     <View>
       <View style={styles.pageHeader}>
         <Text style={styles.pageTitle}>Energy Overview</Text>
         <Text style={styles.pageSub}>
-          Westfield Academy — Real-time monitoring
+          Live Device Data + Scaled Baseline
         </Text>
       </View>
 
-      <View style={styles.dateTabs}>
-        <TouchableOpacity
-          style={[styles.dateTab, day === 0 && styles.dateTabActive]}
-          onPress={() => setDay(0)}
-        >
-          <Text
-            style={[styles.dateTabText, day === 0 && styles.dateTabTextActive]}
-          >
-            Today
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.dateTab, day === 1 && styles.dateTabActive]}
-          onPress={() => setDay(1)}
-        >
-          <Text
-            style={[styles.dateTabText, day === 1 && styles.dateTabTextActive]}
-          >
-            Yesterday
-          </Text>
-        </TouchableOpacity>
+      {/* Data source indicator */}
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 12, gap: 8 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: theme.yg, marginRight: 4 }} />
+          <Text style={{ color: theme.textMuted, fontSize: 10 }}>LIVE (Camera AI)</Text>
+        </View>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: theme.amber, marginRight: 4 }} />
+          <Text style={{ color: theme.textMuted, fontSize: 10 }}>BASELINE (Scaled)</Text>
+        </View>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#6366f1', marginRight: 4 }} />
+          <Text style={{ color: theme.textMuted, fontSize: 10 }}>KAGGLE (Historical)</Text>
+        </View>
       </View>
 
       <View style={styles.metricsGrid}>
         <MetricCard
-          label="Total Today"
-          val={`${total.toFixed(1)} kWh`}
+          label="Total Consumed"
+          val={`${totalKwh.toFixed(2)} kWh`}
           color={theme.amber}
-          sub="↑ 4.2% vs last week"
-          subColor={theme.scarlet}
+          sub="baseline + live"
+          subColor={theme.textMuted}
         />
         <MetricCard
-          label="Peak Hour"
-          val={`${peak.toFixed(1)} kW`}
-          color={theme.text}
-          sub="14:00–15:00"
+          label="Live Power Draw"
+          val={`${liveDraw} W`}
+          color={liveDraw > 0 ? theme.scarlet : theme.textMuted}
+          sub={liveDraw > 0 ? "Camera ON" : "Camera OFF"}
+          subColor={liveDraw > 0 ? theme.scarlet : theme.textMuted}
         />
         <MetricCard
           label="Active Devices"
-          val="24"
+          val={`${activeCount} / 4`}
           color={theme.yg}
-          sub="across 8 zones"
+          sub="2 fans + 2 lights"
+          subColor={theme.textMuted}
         />
         <MetricCard
-          label="Waste (off-hrs)"
-          val={`${waste.toFixed(1)} kWh`}
-          color={theme.scarlet}
-          sub={`↑ ${((waste / total) * 100).toFixed(0)}% of total`}
-          subColor={theme.scarlet}
+          label="Total Cost"
+          val={`\u20b9${backendData?.total_cost_rs?.toFixed(2) || "0.00"}`}
+          color={theme.text}
+        />
+        <MetricCard
+          label="Total Saved"
+          val={`\u20b9${rsSaved.toFixed(2)}`}
+          color={theme.yg}
+          sub={`${hoursUnused.toFixed(1)} hrs unused`}
+          subColor={theme.yg}
         />
       </View>
 
-      {/* Custom React Native Native Bar Chart */}
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>Daily Consumption (kWh)</Text>
-        <View style={styles.barChartContainer}>
-          {data.map((val, idx) => {
-            const heightPct = (val / peak) * 100;
-            const color =
-              val > 7 ? theme.scarlet : val > 4 ? theme.amber : theme.yg;
-            return (
-              <View key={idx} style={styles.barWrap}>
-                <View
-                  style={[
-                    styles.bar,
-                    { height: `${heightPct}%`, backgroundColor: color },
-                  ]}
-                />
-              </View>
-            );
-          })}
-        </View>
-        <View style={styles.barLabels}>
-          <Text style={styles.barLabelText}>12am</Text>
-          <Text style={styles.barLabelText}>6am</Text>
-          <Text style={styles.barLabelText}>12pm</Text>
-          <Text style={styles.barLabelText}>6pm</Text>
-          <Text style={styles.barLabelText}>11pm</Text>
+        <Text style={styles.cardTitle}>Weekly Consumption (kWh)</Text>
+        <Text style={{ color: theme.textMuted, fontSize: 10, marginBottom: 4 }}>Source: Live device sessions + baseline</Text>
+        <View style={{ marginTop: 10, alignItems: 'center' }}>
+          <BarChart
+            data={chartData}
+            width={screenWidth - 60}
+            height={220}
+            yAxisLabel=""
+            yAxisSuffix=""
+            fromZero
+            chartConfig={{
+              backgroundColor: theme.card,
+              backgroundGradientFrom: theme.glassBg,
+              backgroundGradientTo: theme.bg,
+              decimalPlaces: 1,
+              color: (opacity = 1) => `rgba(255, 159, 28, ${opacity})`,
+              labelColor: (opacity = 1) => theme.textMuted,
+              style: { borderRadius: 16 },
+            }}
+            style={{ marginVertical: 8, borderRadius: 16 }}
+          />
         </View>
       </View>
     </View>
   );
 }
 
-function AnalyticsTab() {
+function AnalyticsTab({ backendData }) {
+  
+  const pieColors = [theme.yg, theme.amber, '#6366f1', theme.scarlet];
+  const pieData = backendData?.device_breakdown?.map((dev, idx) => ({
+    name: `${dev.name} (${dev.kwh.toFixed(2)} kWh)`,
+    population: parseFloat(dev.kwh.toFixed(2)),
+    color: pieColors[idx % pieColors.length],
+    legendFontColor: theme.textMuted,
+    legendFontSize: 11
+  })) || [];
+
   return (
     <View>
       <View style={styles.pageHeader}>
         <Text style={styles.pageTitle}>Deep Analytics</Text>
         <Text style={styles.pageSub}>
-          Efficiency scores, anomalies, and trends
+          Device breakdown with data source labels
         </Text>
       </View>
 
       <View style={styles.card}>
-        <View
-          style={{
-            flexDirection: "row",
-            justifyContent: "space-between",
-            alignItems: "center",
-          }}
-        >
-          <Text style={styles.cardTitle}>Anomaly Detection</Text>
-          <View style={styles.badgeHigh}>
-            <Text style={styles.badgeTextHigh}>3 Alerts</Text>
-          </View>
-        </View>
+        <Text style={styles.cardTitle}>Device Efficiency Breakdown</Text>
+        <Text style={{ color: theme.textMuted, fontSize: 10, marginBottom: 4 }}>Source: Live sessions + baseline estimates</Text>
 
+        {pieData.length > 0 ? (
+          <View style={{ alignItems: 'center', marginTop: 15 }}>
+            <PieChart
+              data={pieData}
+              width={screenWidth - 60}
+              height={200}
+              chartConfig={{
+                color: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
+              }}
+              accessor={"population"}
+              backgroundColor={"transparent"}
+              paddingLeft={"15"}
+              center={[10, 0]}
+              absolute
+            />
+          </View>
+        ) : (
+          <Text style={{ color: theme.textMuted, marginTop: 20, textAlign: 'center' }}>
+            No device data logged yet. Let the camera run to gather data!
+          </Text>
+        )}
+
+        {/* Device detail list with source tags */}
+        <View style={{ marginTop: 16 }}>
+          {backendData?.device_breakdown?.map((dev, idx) => (
+            <View key={idx} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderColor: theme.border }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: pieColors[idx % pieColors.length], marginRight: 8 }} />
+                <Text style={{ color: theme.text, fontSize: 13 }}>{dev.name}</Text>
+              </View>
+              <Text style={{ color: theme.textMuted, fontSize: 12 }}>{dev.kwh.toFixed(2)} kWh</Text>
+              <View style={{ backgroundColor: dev.source === "live" ? 'rgba(174,234,154,0.2)' : 'rgba(139,160,167,0.2)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginLeft: 8 }}>
+                <Text style={{ color: dev.source === "live" ? theme.yg : theme.amber, fontSize: 9, fontWeight: 'bold' }}>
+                  {dev.source === "live" ? "LIVE" : "BASE"}
+                </Text>
+              </View>
+            </View>
+          ))}
+        </View>
+      </View>
+
+      <View style={[styles.card, { marginTop: 20 }]}>
+        <Text style={styles.cardTitle}>Live Database Logs</Text>
         <View style={styles.insightList}>
-          <Insight
-            type="alert"
-            label="CRITICAL"
-            text="Server room running 18hrs/day on weekends — 42 kWh wasted"
-            fill="87%"
-          />
-          <Insight
-            type="warn"
-            label="WARNING"
-            text="Gym HVAC left on overnight Tuesday — 14 kWh wasted"
-            fill="54%"
-          />
-          <Insight
-            type="warn"
-            label="WARNING"
-            text="Classroom block B projectors idle for 3+ hours (not sleep mode)"
-            fill="38%"
-          />
+          {backendData?.active_devices?.map((dev, idx) => (
+             <Insight
+              key={idx}
+              type="warn"
+              label="ACTIVE"
+              text={`${dev.name} is currently running (${dev.power_watts}W)`}
+              fill="100%"
+            />
+          ))}
+          {backendData?.active_devices?.length === 0 && (
+             <Insight type="alert" label="SYSTEM IDLE" text="All devices are currently powered off. Saving energy!" fill="0%" />
+          )}
         </View>
       </View>
     </View>
@@ -455,94 +519,168 @@ function AnalyticsTab() {
 
 function PredictTab() {
   const [loading, setLoading] = useState(false);
-  const [data, setData] = useState(null);
+  const [activeModel, setActiveModel] = useState(null); // "gemini" | "ml"
+  const [predictions, setPredictions] = useState(null);
+  const [totalCost, setTotalCost] = useState(null);
+  const [modelName, setModelName] = useState("");
+  const [histData, setHistData] = useState(null);
 
-  const runPrediction = () => {
+  // Fetch historical data on mount
+  React.useEffect(() => {
+    const fetchHist = async () => {
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/historical-usage/`);
+        const json = await res.json();
+        if (json.status === "success") setHistData(json);
+      } catch (e) {
+        console.log("Historical fetch err:", e);
+      }
+    };
+    fetchHist();
+  }, []);
+
+  const runGemini = async () => {
     setLoading(true);
-    // Simulating API Call delay
-    setTimeout(() => {
-      setData({
-        tomorrow: 142.4,
-        week: 710,
-        bill: 43500,
-        insights: [
-          {
-            type: "good",
-            title: "OPTIMIZED",
-            text: "HVAC scheduling is saving ~12% daily.",
-          },
-          {
-            type: "warn",
-            title: "FORECAST",
-            text: "Heatwave expected Thursday; cooling load will spike 20%.",
-          },
-        ],
+    setActiveModel("gemini");
+    try {
+      const histArr = [45.2, 48.1, 46.5, 47.0, 42.1, 12.5, 10.8, 46.3, 49.2, 47.8, 48.5, 45.9, 13.1, 11.2];
+      const response = await fetch(`${BACKEND_URL}/api/predict/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ history: histArr }),
       });
+      const data = await response.json();
+      if (data.status === "success") {
+        setPredictions(data.predictions);
+        setTotalCost(data.total_cost);
+        setModelName("Gemini 3 Flash");
+      } else {
+        alert("Error: " + data.message);
+      }
+    } catch (e) {
+      alert("Network Error: " + e.message);
+    } finally {
       setLoading(false);
-    }, 1500);
+    }
   };
+
+  const runML = async () => {
+    setLoading(true);
+    setActiveModel("ml");
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/ml-predict/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ temperature: 32, humidity: 55, occupancy: 20 }),
+      });
+      const data = await response.json();
+      if (data.status === "success") {
+        setPredictions(data.predictions);
+        setTotalCost(data.total_cost);
+        setModelName(data.model || "RandomForest");
+      } else {
+        alert("Error: " + data.message);
+      }
+    } catch (e) {
+      alert("Network Error: " + e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Prepare historical chart
+  const histChartData = histData ? {
+    labels: histData.data.slice(-7).map(d => d.date.slice(5)),
+    datasets: [{ data: histData.data.slice(-7).map(d => d.kwh) }],
+  } : null;
 
   return (
     <View>
       <View style={styles.pageHeader}>
         <Text style={styles.pageTitle}>AI Predictions</Text>
-        <Text style={styles.pageSub}>Powered by Cloud Inference</Text>
+        <Text style={styles.pageSub}>Dual Mode: Gemini AI + ML Model (scikit-learn)</Text>
       </View>
 
-      <TouchableOpacity style={styles.aiButton} onPress={runPrediction}>
-        <Text style={styles.aiButtonText}>Generate Forecast ↗</Text>
-      </TouchableOpacity>
+      {/* Historical Baseline Chart */}
+      {histChartData && (
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>30-Day Historical Baseline (Kaggle Dataset)</Text>
+          <Text style={{ color: theme.textMuted, fontSize: 11, marginBottom: 10 }}>
+            {histData.days} days | {histData.total_kwh} kWh total
+          </Text>
+          <BarChart
+            data={histChartData}
+            width={screenWidth - 60}
+            height={180}
+            fromZero
+            chartConfig={{
+              backgroundGradientFrom: theme.bg,
+              backgroundGradientTo: theme.bg,
+              decimalPlaces: 0,
+              color: (opacity = 1) => `rgba(159, 211, 86, ${opacity})`,
+              labelColor: () => theme.textMuted,
+              barPercentage: 0.7,
+            }}
+            style={{ borderRadius: 8 }}
+          />
+        </View>
+      )}
+
+      {/* Two Prediction Buttons */}
+      <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
+        <TouchableOpacity
+          style={[styles.aiButton, { flex: 1, backgroundColor: activeModel === "gemini" ? theme.amber : theme.glassBg }]}
+          onPress={runGemini}
+          disabled={loading}
+        >
+          <Text style={[styles.aiButtonText, { color: activeModel === "gemini" ? theme.bg : theme.text }]}>
+            Gemini AI
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.aiButton, { flex: 1, backgroundColor: activeModel === "ml" ? theme.yg : theme.glassBg }]}
+          onPress={runML}
+          disabled={loading}
+        >
+          <Text style={[styles.aiButtonText, { color: activeModel === "ml" ? theme.bg : theme.text }]}>
+            ML Model
+          </Text>
+        </TouchableOpacity>
+      </View>
 
       {loading && (
         <View style={styles.loadingBox}>
           <ActivityIndicator color={theme.yg} />
-          <Text style={styles.loadingText}>Running AI inference...</Text>
+          <Text style={styles.loadingText}>
+            {activeModel === "gemini" ? "Querying Gemini AI..." : "Running RandomForest inference..."}
+          </Text>
         </View>
       )}
 
-      {data && (
-        <>
-          <View style={styles.metricsGrid}>
-            <MetricCard
-              label="Tomorrow (kWh)"
-              val={data.tomorrow}
-              color={theme.amber}
-            />
-            <MetricCard
-              label="This Week (kWh)"
-              val={data.week}
-              color={theme.text}
-            />
-            <MetricCard
-              label="Month End Bill"
-              val={`₹${data.bill}`}
-              color={theme.yg}
-            />
+      {predictions && (
+        <View style={{ marginTop: 10 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
+            <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: activeModel === "gemini" ? theme.amber : theme.yg, marginRight: 8 }} />
+            <Text style={{ color: theme.text, fontSize: 13, fontWeight: '600' }}>
+              Model: {modelName}
+            </Text>
           </View>
 
-          <View
-            style={[
-              styles.card,
-              {
-                borderColor: theme.yg,
-                backgroundColor: "rgba(159,211,86,0.05)",
-              },
-            ]}
-          >
-            <Text style={[styles.cardTitle, { color: theme.yg }]}>
-              AI Insights
-            </Text>
-            {data.insights.map((ins, i) => (
-              <Insight
-                key={i}
-                type={ins.type}
-                label={ins.title}
-                text={ins.text}
-                fill="0%"
-              />
+          <View style={styles.metricsGrid}>
+            <MetricCard label="Tomorrow" val={`${predictions[0]?.predicted_kwh || 0} kWh`} color={theme.amber} />
+            <MetricCard label="Week Total" val={`\u20b9${totalCost || 0}`} color={theme.yg} />
+          </View>
+
+          <View style={[styles.card, { borderColor: activeModel === "gemini" ? theme.amber : theme.yg, backgroundColor: "rgba(174,234,154,0.05)" }]}>
+            <Text style={[styles.cardTitle, { color: activeModel === "gemini" ? theme.amber : theme.yg }]}>7-Day Breakdown</Text>
+            {predictions.map((p, idx) => (
+              <View key={idx} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderColor: theme.border }}>
+                <Text style={{ color: theme.text }}>{p.day_name || `Day ${p.day_index}`}</Text>
+                <Text style={{ color: theme.textMuted }}>{p.predicted_kwh} kWh <Text style={{ color: theme.amber }}>{"\u20b9"}{p.estimated_cost}</Text></Text>
+              </View>
             ))}
           </View>
-        </>
+        </View>
       )}
     </View>
   );
@@ -582,22 +720,62 @@ function DevicesTab() {
 }
 
 function HeatmapTab() {
-  // Simple Mock Heatmap mapping
-  const days = ["M", "T", "W", "T", "F", "S", "S"];
-  const grid = days.map((_, di) =>
-    Array.from({ length: 12 }).map((_, hi) => {
-      if (di < 5 && hi > 3 && hi < 9) return Math.random() * 0.8 + 0.2; // High usage weekdays
-      return Math.random() * 0.2; // Low usage
-    }),
-  );
+  const [histData, setHistData] = useState(null);
+
+  React.useEffect(() => {
+    const fetchHist = async () => {
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/historical-usage/`);
+        const json = await res.json();
+        if (json.status === "success") setHistData(json);
+      } catch (e) {
+        console.log("Heatmap fetch err:", e);
+      }
+    };
+    fetchHist();
+  }, []);
+
+  // Build heatmap from last 7 days of historical data
+  const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  let grid;
+  if (histData && histData.data.length >= 7) {
+    const last7 = histData.data.slice(-7);
+    const maxKwh = Math.max(...last7.map(d => d.kwh));
+    grid = last7.map(d => {
+      // Create 12 cells (2-hour blocks) from daily data
+      const baseIntensity = d.kwh / maxKwh;
+      return Array.from({ length: 12 }).map((_, hi) => {
+        // Working hours (blocks 4-8, i.e. 8am-4pm) are higher
+        const hourFactor = (hi >= 4 && hi <= 8) ? 0.8 : (hi >= 3 && hi <= 9) ? 0.4 : 0.1;
+        return Math.min(1, baseIntensity * hourFactor + Math.random() * 0.1);
+      });
+    });
+  } else {
+    grid = days.map((_, di) =>
+      Array.from({ length: 12 }).map((_, hi) => {
+        if (di < 5 && hi > 3 && hi < 9) return Math.random() * 0.8 + 0.2;
+        return Math.random() * 0.2;
+      })
+    );
+  }
+
+  const timeLabels = ["0", "2", "4", "6", "8", "10", "12", "14", "16", "18", "20", "22"];
 
   return (
     <View>
       <View style={styles.pageHeader}>
         <Text style={styles.pageTitle}>Usage Heatmap</Text>
-        <Text style={styles.pageSub}>Intensity mapping (Day vs Time)</Text>
+        <Text style={styles.pageSub}>
+          {histData ? `Based on ${histData.days}-day Kaggle dataset` : "Loading historical data..."}
+        </Text>
       </View>
       <View style={styles.card}>
+        {/* Time labels */}
+        <View style={{ flexDirection: 'row', marginLeft: 24, marginBottom: 4 }}>
+          {timeLabels.map((t, i) => (
+            <Text key={i} style={{ flex: 1, color: theme.textMuted, fontSize: 8, textAlign: 'center' }}>{t}</Text>
+          ))}
+        </View>
         <View style={styles.hmContainer}>
           {grid.map((dayRow, dIdx) => (
             <View key={dIdx} style={styles.hmRow}>
@@ -622,65 +800,120 @@ function HeatmapTab() {
             </View>
           ))}
         </View>
+        {/* Legend */}
+        <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 12, gap: 16 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <View style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: theme.yg, marginRight: 4 }} />
+            <Text style={{ color: theme.textMuted, fontSize: 10 }}>Low</Text>
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <View style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: theme.amber, marginRight: 4 }} />
+            <Text style={{ color: theme.textMuted, fontSize: 10 }}>Medium</Text>
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <View style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: theme.scarlet, marginRight: 4 }} />
+            <Text style={{ color: theme.textMuted, fontSize: 10 }}>High</Text>
+          </View>
+        </View>
       </View>
     </View>
   );
 }
 
 function CalculatorTab() {
-  const [rate, setRate] = useState("7.50");
-  const [tax, setTax] = useState("8");
-  const [fixed, setFixed] = useState("45");
+  const [units, setUnits] = useState("250");
+  const [days, setDays] = useState("30");
+  const [fixedCharge, setFixedCharge] = useState("45");
 
-  const r = parseFloat(rate) || 0;
-  const t = parseFloat(tax) || 0;
-  const f = parseFloat(fixed) || 0;
+  const u = parseFloat(units) || 0;
+  const d = parseFloat(days) || 30;
+  const fc = parseFloat(fixedCharge) || 0;
 
-  const base = 145 * 20 * r;
-  const fixedTotal = f * 30;
-  const sub = base + fixedTotal;
-  const dutyAmt = sub * (t / 100);
-  const total = sub + dutyAmt;
+  // Indian tariff slab calculation
+  let energyCost = 0;
+  if (u <= 100) {
+    energyCost = u * 3.75;
+  } else if (u <= 200) {
+    energyCost = 100 * 3.75 + (u - 100) * 4.60;
+  } else if (u <= 400) {
+    energyCost = 100 * 3.75 + 100 * 4.60 + (u - 200) * 5.30;
+  } else {
+    energyCost = 100 * 3.75 + 100 * 4.60 + 200 * 5.30 + (u - 400) * 5.75;
+  }
+
+  const fixedTotal = fc * d;
+  const electricityDuty = energyCost * 0.08;  // 8% duty
+  const total = energyCost + fixedTotal + electricityDuty;
+
+  // Per day and per kWh
+  const perDay = total / d;
+  const perKwh = u > 0 ? total / u : 0;
 
   return (
     <View style={styles.calcPanel}>
       <Text style={styles.calcTitle}>Bill Estimator (INR)</Text>
+      <Text style={{ color: theme.textMuted, fontSize: 11, marginBottom: 12 }}>
+        Uses Indian electricity tariff slabs
+      </Text>
 
       <View style={styles.inputGroup}>
-        <Text style={styles.inputLabel}>Rate (₹/kWh)</Text>
+        <Text style={styles.inputLabel}>Monthly Units (kWh)</Text>
         <TextInput
           style={styles.input}
           keyboardType="numeric"
-          value={rate}
-          onChangeText={setRate}
+          value={units}
+          onChangeText={setUnits}
+          placeholder="250"
+          placeholderTextColor={theme.textMuted}
         />
       </View>
+
       <View style={styles.inputGroup}>
-        <Text style={styles.inputLabel}>Electricity Duty (%)</Text>
+        <Text style={styles.inputLabel}>Billing Days</Text>
         <TextInput
           style={styles.input}
           keyboardType="numeric"
-          value={tax}
-          onChangeText={setTax}
+          value={days}
+          onChangeText={setDays}
         />
       </View>
+
       <View style={styles.inputGroup}>
-        <Text style={styles.inputLabel}>Fixed Charge (₹/day)</Text>
+        <Text style={styles.inputLabel}>Fixed Charge ({"\u20b9"}/day)</Text>
         <TextInput
           style={styles.input}
           keyboardType="numeric"
-          value={fixed}
-          onChangeText={setFixed}
+          value={fixedCharge}
+          onChangeText={setFixedCharge}
         />
+      </View>
+
+      {/* Tariff slab info */}
+      <View style={[styles.card, { marginTop: 12, backgroundColor: 'rgba(255,255,255,0.03)' }]}>
+        <Text style={[styles.cardTitle, { fontSize: 12 }]}>Tariff Slabs Applied</Text>
+        {[
+          { range: "0-100 units", rate: "3.75" },
+          { range: "101-200 units", rate: "4.60" },
+          { range: "201-400 units", rate: "5.30" },
+          { range: "400+ units", rate: "5.75" },
+        ].map((slab, i) => (
+          <View key={i} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3 }}>
+            <Text style={{ color: theme.textMuted, fontSize: 11 }}>{slab.range}</Text>
+            <Text style={{ color: theme.text, fontSize: 11 }}>{"\u20b9"}{slab.rate}/unit</Text>
+          </View>
+        ))}
       </View>
 
       <View style={styles.calcResult}>
         <Text style={styles.calcResultLabel}>Est. Monthly Bill</Text>
         <Text style={styles.calcResultTotal}>
-          ₹{total.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ",")}
+          {"\u20b9"}{total.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ",")}
         </Text>
         <Text style={styles.calcSubText}>
-          Energy: ₹{base.toFixed(0)} | Duty: ₹{dutyAmt.toFixed(0)}
+          Energy: {"\u20b9"}{energyCost.toFixed(0)} | Fixed: {"\u20b9"}{fixedTotal.toFixed(0)} | Duty: {"\u20b9"}{electricityDuty.toFixed(0)}
+        </Text>
+        <Text style={[styles.calcSubText, { marginTop: 4, color: theme.yg }]}>
+          {"\u20b9"}{perDay.toFixed(2)}/day | {"\u20b9"}{perKwh.toFixed(2)}/kWh
         </Text>
       </View>
     </View>
@@ -751,7 +984,7 @@ const styles = StyleSheet.create({
   navContainer: {
     borderBottomWidth: 1,
     borderColor: theme.border,
-    backgroundColor: "rgba(15,18,25,0.9)",
+    backgroundColor: "rgba(26,29,31,0.9)",
   },
   navScroll: {
     paddingHorizontal: 10,
@@ -765,9 +998,9 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   navItemActive: {
-    backgroundColor: "rgba(255,159,28,0.1)",
+    backgroundColor: "rgba(139,160,167,0.1)",
     borderWidth: 1,
-    borderColor: "rgba(255,159,28,0.3)",
+    borderColor: "rgba(139,160,167,0.3)",
   },
   navText: { color: theme.textMuted, fontSize: 13 },
   navTextActive: { color: theme.amber, fontWeight: "600" },
@@ -909,11 +1142,11 @@ const styles = StyleSheet.create({
 
   // Cost Calc
   calcPanel: {
-    backgroundColor: "rgba(255,159,28,0.05)",
+    backgroundColor: "rgba(139,160,167,0.05)",
     padding: 20,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "rgba(255,159,28,0.2)",
+    borderColor: "rgba(139,160,167,0.2)",
   },
   calcTitle: {
     color: theme.amber,
@@ -934,7 +1167,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   calcResult: {
-    backgroundColor: "rgba(255,159,28,0.1)",
+    backgroundColor: "rgba(139,160,167,0.1)",
     padding: 16,
     borderRadius: 12,
     marginTop: 10,
@@ -954,9 +1187,9 @@ const styles = StyleSheet.create({
 
   // AI Button
   aiButton: {
-    backgroundColor: "rgba(159,211,86,0.1)",
+    backgroundColor: "rgba(174,234,154,0.1)",
     borderWidth: 1,
-    borderColor: "rgba(159,211,86,0.3)",
+    borderColor: "rgba(174,234,154,0.3)",
     padding: 12,
     borderRadius: 10,
     alignItems: "center",

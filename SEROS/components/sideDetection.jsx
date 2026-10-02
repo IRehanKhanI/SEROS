@@ -11,7 +11,7 @@ import { CameraView, useCameraPermissions } from "expo-camera";
 import * as ScreenOrientation from "expo-screen-orientation";
 
 // ─── CONFIG ────────────────────────────────────────────────────────────────────
-const BACKEND_URL = "http://10.1.12.187:8000/api/detect/"; // ⚠️ UPDATE THIS IP
+const BACKEND_URL = "http://10.167.97.66:8000/api/detect/"; // ⚠️ UPDATE THIS IP
 const CAPTURE_MS = 300;
 const IMAGE_QUALITY = 0.45;
 const REQUEST_TIMEOUT_MS = 3000;

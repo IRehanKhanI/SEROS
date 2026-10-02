@@ -1,53 +1,65 @@
 # SEROS - Smart Energy & Resource Optimization System
 
-Educational institutions often experience inefficient use of energy and resources due to a lack of monitoring and automation systems. **SEROS** is an AI-based system built to optimize energy consumption using real-time occupancy and usage analytics.
+Educational institutions and commercial buildings often experience inefficient use of energy due to a lack of monitoring and automation systems. **SEROS** is an AI-powered system built to optimize energy consumption using real-time edge computer vision, live environmental sensors, and advanced machine learning analytics.
 
-## 🚀 Features
+## 🚀 Key Features
 
-- **Real-Time Occupancy Detection:** Uses a mobile camera or webcam to detect room usage in real-time.
-- **Event-Driven IoT Automation:** Instead of polling, the system uses event-driven logic to adjust lighting and HVAC based on predefined rules (e.g., turn devices on when occupied, turn off if empty for 10+ minutes).
-- **Energy Analytics Dashboard:** Tracks and analyzes consumption patterns over time, estimating cost savings.
-- **Low Latency:** Uses WebSockets for real-time video frame streaming.
+- **Real-Time Edge Occupancy Detection:** Uses a mobile camera to stream frames to a local Django server running **YOLOv8s** (Small) for highly accurate human detection.
+- **Dynamic Fan/Lighting Routing:** Instantly detects spatial coordinates of occupants. If people are strictly on the left or right, it communicates directly with Arduino via Serial (`COM5`) to toggle specific relays, ensuring energy isn't wasted cooling empty zones.
+- **Machine Learning Energy Forecasting:** Leverages a `RandomForestRegressor` trained on Kaggle IoT Electricity Consumption datasets to predict the building's energy footprint for the next 7 days based on dynamic variables like temperature, time, and occupancy.
+- **Gemini 3 AI Analytics:** Integrates Google's `gemini-3-flash-preview` model for automated energy usage summarization and witty feedback.
+- **Live Weather Integration:** Ingests live temperature and humidity using the Weather API (`weatherapi.com`) to feed accurate real-time environmental data to the ML regression models.
+- **Sage-Slate-Charcoal Glassmorphism UI:** A sleek, futuristic React Native dashboard built entirely using dynamic RGBA values for deep, professional frosted glass visuals.
 
 ---
 
 ## 🛠️ Tech Stack
 
-### **Backend (Django & Edge AI)**
-- **Framework:** Django 5.2
-- **WebSockets:** Django Channels & Daphne (ASGI Server) for low-latency, real-time video frame streaming.
-- **AI Model:** `ultralytics` YOLOv8 Nano (`yolov8n.pt`). Runs directly inside the Django consumer for fast, real-time edge inference on the laptop CPU.
-- **Database:** SQLite (for tracking OccupancyEvents and Device states locally).
+### **Backend (Django & AI Analytics)**
+- **Framework:** Django 5.2 (REST Framework)
+- **Computer Vision:** `ultralytics` YOLOv8 Small (`yolov8s.pt`)
+- **Machine Learning:** `scikit-learn` (Random Forest), `pandas`, `numpy`
+- **GenAI Integration:** Google Gemini API
+- **Hardware Comms:** `pyserial` (Serial communication with Arduino on COM5)
+- **Database:** SQLite (local hackathon demo persistent storage) & `django.core.cache` (Weather API caching)
 
-### **Frontend (Mobile/Dashboard)**
+### **Frontend (Mobile Dashboard)**
 - **Framework:** React Native (Expo)
-- **Features:** Streams camera frames (Base64) to the backend via WebSockets. Serves as the dashboard UI for analytics.
+- **UI Architecture:** Custom Glassmorphism implementation (`theme.js`)
+- **Charting:** `react-native-chart-kit` and `react-native-svg` for visual data representation.
 
-### **IoT (Simulation/Integration)**
-- **Protocol:** HTTP POST requests (or MQTT) triggered by Django event state-changes.
-- **Hardware Target:** ESP8266 / ESP32 nodes connected to relays controlling Fans, ACs, and Lights.
-
----
-
-## ⚙️ How It Works
-
-1. **Camera Feed:** The React Native app opens the camera and sends frames as Base64 strings over a WebSocket connection to the Django backend.
-2. **AI Processing:** Django Channels routes the frame to the `OccupancyConsumer`. The frame is decoded using OpenCV and fed into YOLOv8.
-3. **State Management:** YOLO checks for the `person` class. If the room goes from "Empty" to "Occupied", an `OccupancyEvent` is logged, and an HTTP POST request is sent to turn the ESP devices ON.
-4. **Energy Saving:** If no person is detected for a threshold (e.g., 10 minutes), the backend logs the change and sends a signal to turn the ESP devices OFF.
+### **IoT Hardware**
+- **Microcontroller:** Arduino Uno / Mega
+- **Peripherals:** Relay Modules (Fans, Lights)
+- **Communication:** USB Serial (COM5 at 9600 baud)
 
 ---
 
-## 💻 How to Run the Project
+## ⚙️ Core Workflows
 
-### 1. Setup the Backend (Django + YOLOv8)
+1. **Computer Vision Loop:** The Expo Camera loops at custom capture intervals, pinging Base64 encoded JPEGs to `/api/detect/`.
+2. **Zone Logic & Hardware:** YOLO detects centroids (x,y) of all occupants. If `x < 0.5`, it routes `left\n` to the Arduino over Serial. If `x > 0.5`, it routes `right\n`. If zero occupants, it routes `off\n`.
+3. **ML Prediction Engine:** The React Native dashboard queries `/api/ml-predict/`. The Django backend grabs live temperature from the weather API, mixes it with timestamp vectors, and runs inference on the pre-trained `ml_model.pkl`.
+4. **Billing Forecast:** The projected kWh is mathematically pushed through local electricity tariff slab structures (e.g., Rs. 3.75 for <100 units, scaling upwards) to give a real monetary estimate.
 
+---
+
+## 💻 How to Run the Project Locally
+
+### 1. Configure the `.env` File
+Create a `.env` file in the `SEROSBackend` directory containing:
+```ini
+GEMINI_API_KEY="AIzaSy..." # Your Google Gemini API Key
+weatherAPI="b9add9c..."    # Your WeatherAPI.com Key
+```
+
+### 2. Setup the Backend (Django + ML)
 Open your terminal and navigate to the backend directory:
 ```bash
 cd SEROSBackend
 ```
 
-Create a virtual environment (optional but recommended):
+Create a virtual environment:
 ```bash
 python -m venv venv
 venv\Scripts\activate  # Windows
@@ -56,25 +68,28 @@ venv\Scripts\activate  # Windows
 Install the dependencies:
 ```bash
 pip install -r requirements.txt
+pip install pandas scikit-learn ultralytics pyserial google-genai django-cors-headers
 ```
 
-Run database migrations to create the Room and Device tables:
+**(Crucial Step) Train the ML Model:**
+```bash
+python manage.py shell -c "exec(open('Home/train_model.py').read())"
+```
+*This will ingest `train.csv`, build the `RandomForestRegressor`, and output `ml_model.pkl` to your root directory.*
+
+Run database migrations:
 ```bash
 python manage.py makemigrations
 python manage.py migrate
 ```
 
-Start the ASGI Server (Daphne):
-*Note: Because we are using Django Channels, we must run the ASGI application.*
+Start the Django API:
 ```bash
-python manage.py runserver
+python manage.py runserver 0.0.0.0:8000
 ```
-*(Django's runserver automatically wraps Daphne if it's in INSTALLED_APPS).*
+> **Note on YOLOv8:** The first time you start the server, `yolov8s.pt` weights (~22MB) will automatically download.
 
-> **Note on YOLOv8:** The first time you start the server and send a camera frame, the `yolov8n.pt` weights file (~6MB) will automatically download from Ultralytics.
-
-### 2. Setup the Frontend (React Native Expo)
-
+### 3. Setup the Frontend (React Native)
 Open a new terminal window and navigate to the frontend directory:
 ```bash
 cd SEROS
@@ -89,4 +104,7 @@ Start the Expo development server:
 ```bash
 npx expo start
 ```
-You can scan the QR code with the Expo Go app on your phone, or press `a` to run it on an Android Emulator.
+*Scan the QR code with the Expo Go app or press `a` to run it on an Android Emulator.*
+
+### 4. Hardware Setup (Optional for Demo)
+Upload `appliances.ino` to your Arduino using the Arduino IDE. Make sure it is connected to `COM5` (or update `views.py` to match your specific COM port).

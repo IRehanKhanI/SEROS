@@ -45,7 +45,7 @@ export default function DashboardScreen() {
     } catch (e) {
       alert(
         "Network Error: Could not connect to Django backend. Details: " +
-          e.message,
+        e.message,
       );
     } finally {
       setLoading(false);
@@ -67,7 +67,7 @@ export default function DashboardScreen() {
     } catch (e) {
       alert(
         "Network Error: Could not connect to Django backend. Details: " +
-          e.message,
+        e.message,
       );
     } finally {
       setLoading(false);
@@ -116,35 +116,13 @@ export default function DashboardScreen() {
         )}
       </View>
 
-      {/* smart camera block */}
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Smart AI Fan</Text>
-        <View style={styles.fanContainer}>
-          <Text style={{ fontSize: 50 }}>{fanRunning ? "🌀" : "⏸"} </Text>
-        </View>
 
-        <TouchableOpacity
-          style={[styles.button, { backgroundColor: "#ff9f1c" }]}
-          onPress={getGreeting}
-          disabled={loading}
-        >
-          <Text style={styles.buttonText}>
-            {loading ? "Connecting..." : "Talk to Gemini"}
-          </Text>
-        </TouchableOpacity>
 
-        {greeting !== "" && (
-          <View style={styles.resultBox}>
-            <Text style={styles.resultTitle}>Gemini Says:</Text>
-            <Text style={styles.resultText}>{greeting}</Text>
-          </View>
-        )}
-      </View>
 
       {loading && (
         <ActivityIndicator
           size="large"
-          color="#ff9f1c"
+          color={C.blue}
           style={{ marginTop: 20 }}
         />
       )}
@@ -155,32 +133,32 @@ export default function DashboardScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#080a0e",
+    backgroundColor: C.bg,
     padding: 20,
   },
   title: {
     fontSize: 24,
     fontWeight: "bold",
-    color: "#ff9f1c",
+    color: C.blue,
     marginBottom: 20,
     textAlign: "center",
   },
   card: {
-    backgroundColor: "#1a1a1a",
+    backgroundColor: C.card,
     padding: 20,
     borderRadius: 15,
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: "#333",
+    borderColor: C.border,
   },
   cardTitle: {
     fontSize: 18,
-    color: "#9fd356",
+    color: C.green,
     fontWeight: "bold",
     marginBottom: 10,
   },
   textBody: {
-    color: "#aaa",
+    color: C.textSec,
     marginBottom: 15,
   },
   fanContainer: {
@@ -188,32 +166,32 @@ const styles = StyleSheet.create({
     marginVertical: 20,
   },
   button: {
-    backgroundColor: "#9fd356",
+    backgroundColor: C.green,
     paddingVertical: 12,
     paddingHorizontal: 20,
     borderRadius: 8,
     alignItems: "center",
   },
   buttonText: {
-    color: "#080a0e",
+    color: C.bg,
     fontWeight: "bold",
     fontSize: 16,
   },
   resultBox: {
     marginTop: 20,
     padding: 15,
-    backgroundColor: "rgba(159, 211, 86, 0.1)",
+    backgroundColor: "rgba(174,234,154,0.1)",
     borderRadius: 10,
-    borderColor: "#9fd356",
+    borderColor: C.green,
     borderWidth: 1,
   },
   resultTitle: {
-    color: "#fff",
+    color: C.textPri,
     fontWeight: "bold",
     marginBottom: 10,
   },
   resultText: {
-    color: "#ccc",
+    color: C.textSec,
     marginBottom: 5,
   },
 });

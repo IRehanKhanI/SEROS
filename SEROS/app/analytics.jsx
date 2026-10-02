@@ -1,15 +1,11 @@
-import { Text, View } from "react-native";
+import React from "react";
+import { View } from "react-native";
+import SerosDashboard from "../components/SerosDashboard.jsx";
 
-export default function MarshalScreen() {
+export default function AnalyticsScreen() {
   return (
-    <View
-      style={{
-        flex: 1,
-        justifyContent: "center",
-        alignItems: "center",
-      }}
-    >
-      <Text>Marshal</Text>
+    <View style={{ flex: 1 }}>
+      <SerosDashboard />
     </View>
   );
 }

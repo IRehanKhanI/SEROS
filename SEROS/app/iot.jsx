@@ -1,10 +1,10 @@
-import SerosDashboard from "../components/SerosDashboard.jsx";
-import { View } from "react-native";
 
-export default function Home() {
+import { View, Text } from "react-native";
+
+export default function Iot() {
   return (
     <View style={{ flex: 1 }}>
-      <SerosDashboard />
+      <Text>IoT Page</Text>
     </View>
   );
 }
