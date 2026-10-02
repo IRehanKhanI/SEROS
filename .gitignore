@@ -2,3 +2,5 @@
 /SEROSBackend/yolov8n.pt
 /SEROSBackend/yolov8s.pt
 /SEROSBackend/ml_model.pkl
+/SEROSBackend/.env
+/.env
