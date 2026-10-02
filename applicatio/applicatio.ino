@@ -1,65 +1,118 @@
-#include <Servo.h>
+#include <AFMotor.h>
 
-#define RELAY_FRONT 7
-#define RELAY_BACK  8
-#define SERVO_PIN   9
+// Motors connected to the Adafruit Motor Shield
+AF_DCMotor pump(1);   // M1 - 9V water pump
+AF_DCMotor motor2(2); // M2 - small motor
 
-Servo myServo;
+// LEDs
+const uint8_t LED1 = A0;
+const uint8_t LED2 = A1;
+
+void allOff() {
+  digitalWrite(LED1, LOW);
+  digitalWrite(LED2, LOW);
+  pump.run(RELEASE);
+  motor2.run(RELEASE);
+}
+
+void allOn() {
+  digitalWrite(LED1, HIGH);
+  digitalWrite(LED2, HIGH);
+  pump.setSpeed(255);
+  pump.run(FORWARD);
+  motor2.setSpeed(120);
+  motor2.run(FORWARD);
+}
+
+void handleCommand(String command) {
+  command.trim();
+
+  if (command.length() == 0) {
+    return;
+  }
+
+  // New single-character protocol.
+  if (command == "1") {
+    digitalWrite(LED1, HIGH);
+    Serial.println("LED 1 ON");
+  } else if (command == "0") {
+    digitalWrite(LED1, LOW);
+    Serial.println("LED 1 OFF");
+  } else if (command == "2") {
+    digitalWrite(LED2, HIGH);
+    Serial.println("LED 2 ON");
+  } else if (command == "3") {
+    digitalWrite(LED2, LOW);
+    Serial.println("LED 2 OFF");
+  } else if (command == "P") {
+    pump.setSpeed(255);
+    pump.run(FORWARD);
+    Serial.println("WATER PUMP ON");
+  } else if (command == "p") {
+    pump.run(RELEASE);
+    Serial.println("WATER PUMP OFF");
+  } else if (command == "M") {
+    motor2.setSpeed(120);
+    motor2.run(FORWARD);
+    Serial.println("MOTOR 2 ON");
+  } else if (command == "m") {
+    motor2.run(RELEASE);
+    Serial.println("MOTOR 2 OFF");
+  } else if (command == "A") {
+    allOn();
+    Serial.println("ALL ON");
+  } else if (command == "X") {
+    allOff();
+    Serial.println("ALL OFF");
+  }
+  // Keep compatibility with the backend's existing word commands.
+  else if (command == "left") {
+    digitalWrite(LED1, HIGH);
+    digitalWrite(LED2, LOW);
+    pump.setSpeed(255);
+    pump.run(FORWARD);
+    motor2.run(RELEASE);
+    Serial.println("LEFT: WATER PUMP ON");
+  } else if (command == "right") {
+    digitalWrite(LED1, LOW);
+    digitalWrite(LED2, HIGH);
+    pump.run(RELEASE);
+    motor2.setSpeed(120);
+    motor2.run(FORWARD);
+    Serial.println("RIGHT: MOTOR 2 ON");
+  } else if (command == "both") {
+    allOn();
+    Serial.println("BOTH MOTORS ON");
+  } else if (command == "off") {
+    allOff();
+    Serial.println("ALL OFF");
+  } else {
+    Serial.print("INVALID COMMAND: ");
+    Serial.println(command);
+  }
+}
 
 void setup() {
   Serial.begin(9600);
 
-  pinMode(RELAY_FRONT, OUTPUT);
-  pinMode(RELAY_BACK, OUTPUT);
+  pinMode(LED1, OUTPUT);
+  pinMode(LED2, OUTPUT);
 
-  myServo.attach(SERVO_PIN);
-  
-  // OFF initially
-  // RELAY_FRONT is assumed active HIGH (LOW = OFF)
-  // RELAY_BACK is assumed active HIGH (LOW = OFF)
-  digitalWrite(RELAY_FRONT, LOW);//this is older version of the relay it has reverse logic of working
-  digitalWrite(RELAY_BACK, HIGH);//this is newer version of relay, setting LOW to turn OFF
-  
-  myServo.write(90); // 90 = OPEN initially
+  pump.setSpeed(255);
+  motor2.setSpeed(120);
+  allOff();
 
-  Serial.println("ARDUINO READY");
-  Serial.println("Type: left / right / both / off");
+  Serial.println("SYSTEM READY");
+  Serial.println("1/0 = LED1 ON/OFF");
+  Serial.println("2/3 = LED2 ON/OFF");
+  Serial.println("P/p = WATER PUMP ON/OFF");
+  Serial.println("M/m = MOTOR 2 ON/OFF");
+  Serial.println("A = ALL ON, X = ALL OFF");
 }
 
 void loop() {
   if (Serial.available() > 0) {
-    String cmd = Serial.readStringUntil('\n');
-    cmd.trim();
-
-    Serial.print("Command: ");
-    Serial.println(cmd);
-
-    if (cmd == "left") {
-      Serial.println("LEFT MODE");
-      digitalWrite(RELAY_FRONT, HIGH); // FRONT ON
-      digitalWrite(RELAY_BACK, LOW);   // BACK OFF
-      myServo.write(0);                // CLOSE window
-    }
-    else if (cmd == "right") {
-      Serial.println("RIGHT MODE");
-      digitalWrite(RELAY_FRONT, LOW);  // FRONT OFF
-      digitalWrite(RELAY_BACK, HIGH);  // BACK ON (active HIGH)
-      myServo.write(0);                // CLOSE window
-    }
-    else if (cmd == "both") {
-      Serial.println("BOTH MODE");
-      digitalWrite(RELAY_FRONT, HIGH); // FRONT ON
-      digitalWrite(RELAY_BACK, HIGH);  // BACK ON
-      myServo.write(0);                // CLOSE window
-    }
-    else if (cmd == "off") {
-      Serial.println("ALL OFF");
-      digitalWrite(RELAY_FRONT, LOW);  // FRONT OFF
-      digitalWrite(RELAY_BACK, LOW);   // BACK OFF
-      myServo.write(90);               // OPEN window
-    }
-    else {
-      Serial.println("Invalid command");
-    }
+    String command = Serial.readStringUntil('\n');
+    handleCommand(command);
   }
 }

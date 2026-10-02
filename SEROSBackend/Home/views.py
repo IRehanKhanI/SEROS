@@ -174,12 +174,12 @@ last_sent_cmd = None
 try:
     import serial
     import time
-    arduino_serial = serial.Serial('COM5', 9600, timeout=1)
+    arduino_serial = serial.Serial('COM6', 9600, timeout=1)
     # Wait for the Arduino bootloader to finish resetting the board
     time.sleep(2) 
-    print("✅ Successfully connected to Arduino on COM5")
+    print("✅ Successfully connected to Arduino on COM6")
 except Exception as e:
-    print(f"⚠ FAILED TO CONNECT TO ARDUINO ON COM5: {e}")
+    print(f"⚠ FAILED TO CONNECT TO ARDUINO ON COM6: {e}")
     arduino_serial = None
 # ---------------------------------
 

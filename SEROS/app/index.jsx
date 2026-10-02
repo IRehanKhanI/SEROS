@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   ScrollView,
+  Linking,
 } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as ScreenOrientation from "expo-screen-orientation";
@@ -28,9 +29,17 @@ export default function Index() {
   const cameraRef = useRef(null);
   const isSending = useRef(false);
 
+  useEffect(() => {
+    if (permission && !permission.granted && permission.canAskAgain) {
+      requestPermission();
+    }
+  }, [permission, requestPermission]);
+
   const abortCtrlRef = useRef(null);
 
   const [isCameraActive, setIsCameraActive] = useState(true);
+  const [cameraReady, setCameraReady] = useState(false);
+  const [cameraError, setCameraError] = useState(null);
   const [facing, setFacing] = useState("back");
   const [status, setStatus] = useState("Connecting...");
   const [position, setPosition] = useState("-");
@@ -107,7 +116,13 @@ export default function Index() {
   }, []);
 
   const captureAndSend = useCallback(async () => {
-    if (!isCameraActive || !cameraRef.current || isSending.current) return;
+    if (
+      !isCameraActive ||
+      !cameraReady ||
+      !cameraRef.current ||
+      isSending.current
+    )
+      return;
     isSending.current = true;
     setLoading(true);
 
@@ -194,6 +209,7 @@ export default function Index() {
       }
       setError(null);
     } catch (err) {
+      setPersonsCoords([]);
       if (err.name === "AbortError") {
         setError(`Timeout (>${REQUEST_TIMEOUT_MS}ms)`);
       } else {
@@ -203,7 +219,7 @@ export default function Index() {
       isSending.current = false;
       setLoading(false);
     }
-  }, [isCameraActive]);
+  }, [cameraReady, isCameraActive]);
 
   useEffect(() => {
     let cancelled = false;
@@ -236,6 +252,11 @@ export default function Index() {
         abortCtrlRef.current.abort(); // Instantly kill any pending backend request
       }
 
+      if (!nextState) {
+        setCameraReady(false);
+        setCameraError(null);
+      }
+
       // Update states immediately based on nextState to avoid stale closures
       if (!nextState) {
         setStatus("Camera Paused");
@@ -264,8 +285,17 @@ export default function Index() {
     return (
       <View style={styles.center}>
         <Text style={styles.permText}>📷 Camera access needed</Text>
-        <TouchableOpacity style={styles.grantBtn} onPress={requestPermission}>
-          <Text style={styles.grantBtnText}>Grant Permission</Text>
+        <TouchableOpacity
+          style={styles.grantBtn}
+          onPress={() =>
+            permission.canAskAgain
+              ? requestPermission()
+              : Linking.openSettings()
+          }
+        >
+          <Text style={styles.grantBtnText}>
+            {permission.canAskAgain ? "Grant Permission" : "Open Settings"}
+          </Text>
         </TouchableOpacity>
       </View>
     );
@@ -285,14 +315,42 @@ export default function Index() {
       >
         {isCameraActive ? (
           <CameraView
+            key={`camera-${facing}`}
             ref={cameraRef}
-            style={StyleSheet.absoluteFillObject}
+            style={styles.cameraPreview}
             facing={facing}
+            mode="picture"
+            ratio="4:3"
+            onCameraReady={() => {
+              setCameraReady(true);
+              setCameraError(null);
+            }}
+            onMountError={(event) => {
+              setCameraReady(false);
+              setCameraError(
+                event?.nativeEvent?.message || "Unable to start the camera",
+              );
+            }}
           />
         ) : (
           <View style={styles.cameraPlaceholder}>
             <Ionicons name="videocam-off" size={48} color={C.textSec} />
             <Text style={styles.cameraPlaceholderText}>Camera is OFF</Text>
+          </View>
+        )}
+
+        {isCameraActive && !cameraReady && !cameraError && (
+          <View style={styles.cameraStatus}>
+            <ActivityIndicator color={C.green} size="large" />
+            <Text style={styles.cameraStatusText}>Starting camera...</Text>
+          </View>
+        )}
+
+        {isCameraActive && cameraError && (
+          <View style={styles.cameraStatus}>
+            <Ionicons name="warning-outline" size={42} color={C.yellow} />
+            <Text style={styles.cameraStatusText}>Camera unavailable</Text>
+            <Text style={styles.cameraErrorText}>{cameraError}</Text>
           </View>
         )}
 
@@ -548,6 +606,14 @@ const styles = StyleSheet.create({
     backgroundColor: "#000",
     position: "relative",
     minHeight: 300,
+    overflow: "hidden",
+  },
+  cameraPreview: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
   },
   cameraPlaceholder: {
     flex: 1,
@@ -560,6 +626,28 @@ const styles = StyleSheet.create({
     marginTop: 10,
     fontSize: 16,
     fontWeight: "600",
+  },
+  cameraStatus: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 24,
+    backgroundColor: "rgba(17,24,39,0.88)",
+    zIndex: 20,
+    elevation: 20,
+  },
+  cameraStatusText: {
+    color: C.textPri,
+    marginTop: 10,
+    fontSize: 16,
+    fontWeight: "600",
+    textAlign: "center",
+  },
+  cameraErrorText: {
+    color: C.textSec,
+    marginTop: 8,
+    fontSize: 12,
+    textAlign: "center",
   },
   personDot: {
     position: "absolute",

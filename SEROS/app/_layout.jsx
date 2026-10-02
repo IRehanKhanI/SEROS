@@ -8,10 +8,17 @@ export default function RootLayout() {
     <Tabs
       screenOptions={{
         headerRight: () => <BackendStatus />,
-        headerStyle: { backgroundColor: '#0a0f1e' },
-        headerTintColor: '#fff',
-        tabBarStyle: { backgroundColor: '#0a0f1e', borderTopColor: '#1f2937' },
-        tabBarActiveTintColor: '#10b981',
+        headerStyle: { backgroundColor: "#0a0f1e" },
+        headerTintColor: "#fff",
+        tabBarStyle: {
+          backgroundColor: "#1b2528",
+          borderTopColor: "#3d5558",
+          height: 64,
+          paddingBottom: 8,
+          paddingTop: 6,
+        },
+        tabBarActiveTintColor: "#10b981",
+        tabBarInactiveTintColor: "#9fb2b5",
       }}
     >
       <Tabs.Screen

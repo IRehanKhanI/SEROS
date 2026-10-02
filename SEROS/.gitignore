@@ -36,6 +36,10 @@ yarn-error.*
 # typescript
 *.tsbuildinfo
 
+# model weights
+yolov8n.pt
+yolov8s.pt
+
 app-example
 
 # generated native folders
