@@ -85,8 +85,6 @@ export default function Index() {
         const s = diff % 60;
         setTimerText(m > 0 ? `${m}m ${s}s` : `${s}s`);
       }, 1000);
-    } else {
-      setTimerText("0s");
     }
     return () => clearInterval(interval);
   }, [activeSince]);
@@ -96,7 +94,7 @@ export default function Index() {
     width: Dimensions.get("window").width,
     height: 300,
   });
-  const lastSendTime = useRef(Date.now());
+  const lastSendTime = useRef(0);
 
   useEffect(() => {
     // Lock to portrait to keep everything vertical
@@ -401,8 +399,8 @@ export default function Index() {
       <ScrollView style={styles.panelContainer}>
         <View style={styles.panelHeaderRow}>
           <View>
-            <Text style={styles.panelTitle}>⚡ SmartRoom</Text>
-            <Text style={styles.panelSub}>AI Energy Optimiser</Text>
+            <Text style={styles.panelTitle}>S.E.R.O.S. / ROOM 204</Text>
+            <Text style={styles.panelSub}>Energy operations monitor</Text>
           </View>
 
           <TouchableOpacity
@@ -619,7 +617,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#111827",
+    backgroundColor: "#27302F",
   },
   cameraPlaceholderText: {
     color: C.textSec,
@@ -686,8 +684,8 @@ const styles = StyleSheet.create({
   panelContainer: {
     flex: 1,
     backgroundColor: C.bg,
-    paddingHorizontal: 20,
-    paddingVertical: 15,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
   },
   panelHeaderRow: {
     flexDirection: "row",
@@ -696,9 +694,9 @@ const styles = StyleSheet.create({
   },
   panelTitle: {
     color: C.textPri,
-    fontSize: 22,
-    fontWeight: "700",
-    letterSpacing: 0.5,
+    fontSize: 18,
+    fontWeight: "800",
+    letterSpacing: 0.8,
   },
   panelSub: {
     color: C.textSec,
@@ -713,19 +711,19 @@ const styles = StyleSheet.create({
     fontFamily: "monospace",
   },
   toggleBtn: {
-    paddingHorizontal: 15,
-    paddingVertical: 10,
-    borderRadius: 8,
+    paddingHorizontal: 13,
+    paddingVertical: 9,
+    borderRadius: 4,
   },
   toggleBtnText: {
     color: "#fff",
     fontWeight: "bold",
-    fontSize: 14,
+    fontSize: 12,
   },
   divider: {
     height: 1,
     backgroundColor: C.border,
-    marginVertical: 15,
+    marginVertical: 13,
   },
   statsRow: {
     flexDirection: "row",
@@ -750,7 +748,7 @@ const styles = StyleSheet.create({
     backgroundColor: C.card,
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 6,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: C.border,
   },
@@ -778,7 +776,7 @@ const styles = StyleSheet.create({
     marginBottom: 40,
     borderWidth: 1,
     borderColor: C.border,
-    borderRadius: 7,
+    borderRadius: 4,
     paddingVertical: 12,
     alignItems: "center",
   },
@@ -802,7 +800,7 @@ const styles = StyleSheet.create({
     backgroundColor: C.green,
     paddingHorizontal: 28,
     paddingVertical: 12,
-    borderRadius: 8,
+    borderRadius: 4,
   },
   grantBtnText: {
     color: "#fff",

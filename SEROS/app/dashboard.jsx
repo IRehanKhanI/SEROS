@@ -23,10 +23,20 @@ export default function DashboardScreen() {
     try {
       // Realistic 14-day history for an institution (High on Mon-Fri, very low on Sat-Sun)
       const histData = [
-        45.2, 48.1, 46.5, 47.0, 42.1, // Mon - Fri
-        12.5, 10.8,                   // Sat - Sun
-        46.3, 49.2, 47.8, 48.5, 45.9, // Mon - Fri
-        13.1, 11.2                    // Sat - Sun
+        45.2,
+        48.1,
+        46.5,
+        47.0,
+        42.1, // Mon - Fri
+        12.5,
+        10.8, // Sat - Sun
+        46.3,
+        49.2,
+        47.8,
+        48.5,
+        45.9, // Mon - Fri
+        13.1,
+        11.2, // Sat - Sun
       ];
 
       const response = await fetch(`${BACKEND_URL}/api/predict/`, {
@@ -45,7 +55,7 @@ export default function DashboardScreen() {
     } catch (e) {
       alert(
         "Network Error: Could not connect to Django backend. Details: " +
-        e.message,
+          e.message,
       );
     } finally {
       setLoading(false);
@@ -67,7 +77,7 @@ export default function DashboardScreen() {
     } catch (e) {
       alert(
         "Network Error: Could not connect to Django backend. Details: " +
-        e.message,
+          e.message,
       );
     } finally {
       setLoading(false);
@@ -76,15 +86,20 @@ export default function DashboardScreen() {
 
   return (
     <ScrollView style={styles.container}>
-      <Text style={styles.title}>AI Tools Dashboard</Text>
+      <View style={styles.pageHeader}>
+        <Text style={styles.eyebrow}>S.E.R.O.S. / ENERGY OPERATIONS</Text>
+        <Text style={styles.title}>Consumption Forecast</Text>
+        <Text style={styles.subtitle}>Seven-day demand and tariff outlook</Text>
+      </View>
 
       {/* electricity predictor block */}
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>
-          Electricity Forecaster (Gemini 3 Flash Preview)
-        </Text>
+        <Text style={styles.cardKicker}>FORECAST SERVICE</Text>
+        <Text style={styles.cardTitle}>Electricity demand projection</Text>
         <Text style={styles.textBody}>
-          14-days history loaded. Predicting next 7 days of consumption and generating a billing forecast using the live electricity tariff structure.
+          14-days history loaded. Predicting next 7 days of consumption and
+          generating a billing forecast using the live electricity tariff
+          structure.
         </Text>
 
         <TouchableOpacity
@@ -93,7 +108,7 @@ export default function DashboardScreen() {
           disabled={loading}
         >
           <Text style={styles.buttonText}>
-            {loading ? "Thinking..." : "Get Prediction"}
+            {loading ? "RUNNING FORECAST" : "RUN FORECAST"}
           </Text>
         </TouchableOpacity>
 
@@ -102,22 +117,32 @@ export default function DashboardScreen() {
             <Text style={styles.resultTitle}>Next 7 Days Forecast:</Text>
             {predictions.map((day, idx) => (
               <Text key={idx} style={styles.resultText}>
-                Day {idx + 1}: {parseFloat(day.kWh).toFixed(1)} kWh  👉  Rs. {parseFloat(day.cost).toFixed(2)}
+                Day {idx + 1}: {parseFloat(day.kWh).toFixed(1)} kWh 👉 Rs.{" "}
+                {parseFloat(day.cost).toFixed(2)}
               </Text>
             ))}
             {totalCost !== null && (
-              <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderColor: C.border }}>
-                <Text style={[styles.resultText, { fontWeight: 'bold', color: C.green }]}>
-                  Est. Weekly Bill: Rs. {parseFloat(totalCost).toFixed(2)}
+              <View
+                style={{
+                  marginTop: 10,
+                  paddingTop: 10,
+                  borderTopWidth: 1,
+                  borderColor: C.border,
+                }}
+              >
+                <Text
+                  style={[
+                    styles.resultText,
+                    { fontWeight: "bold", color: C.green },
+                  ]}
+                >
+                  EST. WEEKLY BILL: Rs. {parseFloat(totalCost).toFixed(2)}
                 </Text>
               </View>
             )}
           </View>
         )}
       </View>
-
-
-
 
       {loading && (
         <ActivityIndicator
@@ -134,31 +159,54 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: C.bg,
-    padding: 20,
+    paddingHorizontal: 16,
+    paddingTop: 18,
+  },
+  pageHeader: { marginBottom: 18 },
+  eyebrow: {
+    color: C.green,
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 1.5,
+    marginBottom: 6,
   },
   title: {
     fontSize: 24,
-    fontWeight: "bold",
-    color: C.blue,
-    marginBottom: 20,
-    textAlign: "center",
+    fontWeight: "800",
+    color: C.textPri,
+  },
+  subtitle: {
+    color: C.textSec,
+    fontSize: 13,
+    marginTop: 5,
   },
   card: {
     backgroundColor: C.card,
-    padding: 20,
-    borderRadius: 15,
+    padding: 16,
+    borderRadius: 6,
     marginBottom: 20,
     borderWidth: 1,
     borderColor: C.border,
+    borderLeftWidth: 3,
+    borderLeftColor: C.yellow,
+  },
+  cardKicker: {
+    color: C.yellow,
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 1.2,
+    marginBottom: 5,
   },
   cardTitle: {
-    fontSize: 18,
-    color: C.green,
-    fontWeight: "bold",
+    fontSize: 17,
+    color: C.textPri,
+    fontWeight: "800",
     marginBottom: 10,
   },
   textBody: {
     color: C.textSec,
+    fontSize: 13,
+    lineHeight: 19,
     marginBottom: 15,
   },
   fanContainer: {
@@ -167,21 +215,22 @@ const styles = StyleSheet.create({
   },
   button: {
     backgroundColor: C.green,
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 8,
+    paddingVertical: 11,
+    paddingHorizontal: 16,
+    borderRadius: 4,
     alignItems: "center",
   },
   buttonText: {
-    color: C.bg,
-    fontWeight: "bold",
-    fontSize: 16,
+    color: "#FFFFFF",
+    fontWeight: "800",
+    fontSize: 12,
+    letterSpacing: 0.8,
   },
   resultBox: {
     marginTop: 20,
     padding: 15,
-    backgroundColor: "rgba(174,234,154,0.1)",
-    borderRadius: 10,
+    backgroundColor: "#F6F8F3",
+    borderRadius: 4,
     borderColor: C.green,
     borderWidth: 1,
   },

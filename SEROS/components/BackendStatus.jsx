@@ -43,7 +43,7 @@ export default function BackendStatus() {
           fontWeight: "bold",
         }}
       >
-        {isConnected ? "Backend Up" : "Backend Down"}
+        {isConnected ? "SYSTEM OK" : "SYSTEM OFFLINE"}
       </Text>
     </View>
   );

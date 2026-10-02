@@ -16,22 +16,21 @@ const screenWidth = Dimensions.get("window").width;
 
 // const { width } = Dimensions.get("window");
 
-// --- THEME & DATA ---
+// --- INDUSTRIAL THEME & DATA ---
 const theme = {
-  amber: "#8BA0A7", // Slate blue for accents
-  yg: "#AEEA9A",    // Sage green for active/success
-  scarlet: "#df2935",
-  bg: "#1a1d1f",    // Dark charcoal base
-  text: "#f0f2f0",
-  textPri: "#f0f2f0",
-  textSec: "#8BA0A7",
-  textMuted: "#8BA0A7",
-  card: "rgba(114,110,112,0.15)", // Charcoal glass
-  glassBg: "rgba(114,110,112,0.15)",
-  border: "rgba(174,234,154,0.15)", // Sage green glass border
-  glassHighlight: "rgba(255,255,255,0.05)",
+  amber: "#C58A16",
+  yg: "#168A4A",
+  scarlet: "#C43D4B",
+  bg: "#F3F2EE",
+  text: "#26332F",
+  textPri: "#26332F",
+  textSec: "#26332F",
+  textMuted: "#26332F",
+  card: "#E8EEE8",
+  glassBg: "#E8EEE8",
+  border: "#B9C9BB",
+  glassHighlight: "#F0F4EE",
 };
-
 
 const devicesData = [
   {
@@ -131,11 +130,11 @@ export default function SerosDashboard() {
       <View style={styles.topbar}>
         <View>
           <Text style={styles.logoTitle}>SEROS</Text>
-          <Text style={styles.logoSub}>Smart Energy Optimization</Text>
+          <Text style={styles.logoSub}>ENERGY OPERATIONS</Text>
         </View>
         <View style={styles.statusWrap}>
           <View style={styles.pulse} />
-          <Text style={styles.statusText}>Live Database Linked</Text>
+          <Text style={styles.statusText}>SYSTEM OK / LIVE DATA</Text>
         </View>
       </View>
 
@@ -182,7 +181,9 @@ export default function SerosDashboard() {
         contentContainerStyle={{ paddingBottom: 40 }}
       >
         {activeTab === "overview" && <OverviewTab backendData={backendData} />}
-        {activeTab === "analytics" && <AnalyticsTab backendData={backendData} />}
+        {activeTab === "analytics" && (
+          <AnalyticsTab backendData={backendData} />
+        )}
         {activeTab === "predict" && <PredictTab />}
         {activeTab === "assistant" && <AssistantTab />}
         {activeTab === "devices" && <DevicesTab />}
@@ -214,14 +215,11 @@ function AssistantTab() {
     setLoading(true);
 
     try {
-      const response = await fetch(
-        `${BACKEND_URL}/api/generate-chat/`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ prompt: userMsg }),
-        },
-      );
+      const response = await fetch(`${BACKEND_URL}/api/generate-chat/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: userMsg }),
+      });
       const data = await response.json();
 
       if (data.status === "success") {
@@ -247,15 +245,15 @@ function AssistantTab() {
   return (
     <View style={{ flex: 1 }}>
       <View style={styles.pageHeader}>
-        <Text style={styles.pageTitle}>AI Chat Assistant</Text>
+        <Text style={styles.pageTitle}>Operations Assistant</Text>
         <Text style={styles.pageSub}>
-          Powered by Gemma-4:4b for energy insights
+          Query the energy system for operational context
         </Text>
       </View>
       <View
         style={{
           flex: 1,
-          backgroundColor: "rgba(255,255,255,0.02)",
+          backgroundColor: theme.glassHighlight,
           borderRadius: 12,
           padding: 10,
           minHeight: 300,
@@ -268,15 +266,9 @@ function AssistantTab() {
               key={idx}
               style={{
                 alignSelf: msg.role === "ai" ? "flex-start" : "flex-end",
-                backgroundColor:
-                  msg.role === "ai"
-                    ? "rgba(174,234,154,0.1)"
-                    : "rgba(139,160,167,0.2)",
+                backgroundColor: msg.role === "ai" ? "#E7F2E8" : "#E8EEF1",
                 borderWidth: 1,
-                borderColor:
-                  msg.role === "ai"
-                    ? "rgba(174,234,154,0.3)"
-                    : "rgba(139,160,167,0.4)",
+                borderColor: msg.role === "ai" ? theme.yg : theme.border,
                 padding: 12,
                 borderRadius: 8,
                 marginBottom: 10,
@@ -296,7 +288,7 @@ function AssistantTab() {
           <TextInput
             style={{
               flex: 1,
-              backgroundColor: "rgba(0,0,0,0.5)",
+              backgroundColor: theme.card,
               borderWidth: 1,
               borderColor: theme.border,
               borderRadius: 8,
@@ -330,40 +322,75 @@ function AssistantTab() {
 
 function OverviewTab({ backendData }) {
   const [day, setDay] = useState(0);
-  
+
   const liveDraw = backendData?.live_power_draw_watts || 0;
   const activeCount = backendData?.active_devices?.length || 0;
   const totalKwh = backendData?.total_kwh_consumed || 0;
   const rsSaved = backendData?.rs_saved || 0;
   const hoursUnused = backendData?.hours_unused || 0;
-  
+
   const chartData = {
     labels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Today"],
-    datasets: [{ data: backendData?.daily_kwh || [0,0,0,0,0,0,0] }]
+    datasets: [{ data: backendData?.daily_kwh || [0, 0, 0, 0, 0, 0, 0] }],
   };
 
   return (
     <View>
       <View style={styles.pageHeader}>
         <Text style={styles.pageTitle}>Energy Overview</Text>
-        <Text style={styles.pageSub}>
-          Live Device Data + Scaled Baseline
-        </Text>
+        <Text style={styles.pageSub}>Live Device Data + Scaled Baseline</Text>
       </View>
 
       {/* Data source indicator */}
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 12, gap: 8 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: theme.yg, marginRight: 4 }} />
-          <Text style={{ color: theme.textMuted, fontSize: 10 }}>LIVE (Camera AI)</Text>
+      <View
+        style={{
+          flexDirection: "row",
+          flexWrap: "wrap",
+          marginBottom: 12,
+          gap: 8,
+        }}
+      >
+        <View style={{ flexDirection: "row", alignItems: "center" }}>
+          <View
+            style={{
+              width: 8,
+              height: 8,
+              borderRadius: 4,
+              backgroundColor: theme.yg,
+              marginRight: 4,
+            }}
+          />
+          <Text style={{ color: theme.textMuted, fontSize: 10 }}>
+            LIVE (Camera AI)
+          </Text>
         </View>
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: theme.amber, marginRight: 4 }} />
-          <Text style={{ color: theme.textMuted, fontSize: 10 }}>BASELINE (Scaled)</Text>
+        <View style={{ flexDirection: "row", alignItems: "center" }}>
+          <View
+            style={{
+              width: 8,
+              height: 8,
+              borderRadius: 4,
+              backgroundColor: theme.amber,
+              marginRight: 4,
+            }}
+          />
+          <Text style={{ color: theme.textMuted, fontSize: 10 }}>
+            BASELINE (Scaled)
+          </Text>
         </View>
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#6366f1', marginRight: 4 }} />
-          <Text style={{ color: theme.textMuted, fontSize: 10 }}>KAGGLE (Historical)</Text>
+        <View style={{ flexDirection: "row", alignItems: "center" }}>
+          <View
+            style={{
+              width: 8,
+              height: 8,
+              borderRadius: 4,
+              backgroundColor: "#6366f1",
+              marginRight: 4,
+            }}
+          />
+          <Text style={{ color: theme.textMuted, fontSize: 10 }}>
+            KAGGLE (Historical)
+          </Text>
         </View>
       </View>
 
@@ -405,8 +432,10 @@ function OverviewTab({ backendData }) {
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Weekly Consumption (kWh)</Text>
-        <Text style={{ color: theme.textMuted, fontSize: 10, marginBottom: 4 }}>Source: Live device sessions + baseline</Text>
-        <View style={{ marginTop: 10, alignItems: 'center' }}>
+        <Text style={{ color: theme.textMuted, fontSize: 10, marginBottom: 4 }}>
+          Source: Live device sessions + baseline
+        </Text>
+        <View style={{ marginTop: 10, alignItems: "center" }}>
           <BarChart
             data={chartData}
             width={screenWidth - 60}
@@ -432,15 +461,15 @@ function OverviewTab({ backendData }) {
 }
 
 function AnalyticsTab({ backendData }) {
-  
-  const pieColors = [theme.yg, theme.amber, '#6366f1', theme.scarlet];
-  const pieData = backendData?.device_breakdown?.map((dev, idx) => ({
-    name: `${dev.name} (${dev.kwh.toFixed(2)} kWh)`,
-    population: parseFloat(dev.kwh.toFixed(2)),
-    color: pieColors[idx % pieColors.length],
-    legendFontColor: theme.textMuted,
-    legendFontSize: 11
-  })) || [];
+  const pieColors = [theme.yg, theme.amber, "#6366f1", theme.scarlet];
+  const pieData =
+    backendData?.device_breakdown?.map((dev, idx) => ({
+      name: `${dev.name} (${dev.kwh.toFixed(2)} kWh)`,
+      population: parseFloat(dev.kwh.toFixed(2)),
+      color: pieColors[idx % pieColors.length],
+      legendFontColor: theme.textMuted,
+      legendFontSize: 11,
+    })) || [];
 
   return (
     <View>
@@ -453,10 +482,12 @@ function AnalyticsTab({ backendData }) {
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Device Efficiency Breakdown</Text>
-        <Text style={{ color: theme.textMuted, fontSize: 10, marginBottom: 4 }}>Source: Live sessions + baseline estimates</Text>
+        <Text style={{ color: theme.textMuted, fontSize: 10, marginBottom: 4 }}>
+          Source: Live sessions + baseline estimates
+        </Text>
 
         {pieData.length > 0 ? (
-          <View style={{ alignItems: 'center', marginTop: 15 }}>
+          <View style={{ alignItems: "center", marginTop: 15 }}>
             <PieChart
               data={pieData}
               width={screenWidth - 60}
@@ -472,7 +503,13 @@ function AnalyticsTab({ backendData }) {
             />
           </View>
         ) : (
-          <Text style={{ color: theme.textMuted, marginTop: 20, textAlign: 'center' }}>
+          <Text
+            style={{
+              color: theme.textMuted,
+              marginTop: 20,
+              textAlign: "center",
+            }}
+          >
             No device data logged yet. Let the camera run to gather data!
           </Text>
         )}
@@ -480,14 +517,53 @@ function AnalyticsTab({ backendData }) {
         {/* Device detail list with source tags */}
         <View style={{ marginTop: 16 }}>
           {backendData?.device_breakdown?.map((dev, idx) => (
-            <View key={idx} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderColor: theme.border }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
-                <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: pieColors[idx % pieColors.length], marginRight: 8 }} />
-                <Text style={{ color: theme.text, fontSize: 13 }}>{dev.name}</Text>
+            <View
+              key={idx}
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "center",
+                paddingVertical: 8,
+                borderBottomWidth: 1,
+                borderColor: theme.border,
+              }}
+            >
+              <View
+                style={{ flexDirection: "row", alignItems: "center", flex: 1 }}
+              >
+                <View
+                  style={{
+                    width: 10,
+                    height: 10,
+                    borderRadius: 5,
+                    backgroundColor: pieColors[idx % pieColors.length],
+                    marginRight: 8,
+                  }}
+                />
+                <Text style={{ color: theme.text, fontSize: 13 }}>
+                  {dev.name}
+                </Text>
               </View>
-              <Text style={{ color: theme.textMuted, fontSize: 12 }}>{dev.kwh.toFixed(2)} kWh</Text>
-              <View style={{ backgroundColor: dev.source === "live" ? 'rgba(174,234,154,0.2)' : 'rgba(139,160,167,0.2)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginLeft: 8 }}>
-                <Text style={{ color: dev.source === "live" ? theme.yg : theme.amber, fontSize: 9, fontWeight: 'bold' }}>
+              <Text style={{ color: theme.textMuted, fontSize: 12 }}>
+                {dev.kwh.toFixed(2)} kWh
+              </Text>
+              <View
+                style={{
+                  backgroundColor:
+                    dev.source === "live" ? "#E7F2E8" : "#F2EBD9",
+                  paddingHorizontal: 6,
+                  paddingVertical: 2,
+                  borderRadius: 4,
+                  marginLeft: 8,
+                }}
+              >
+                <Text
+                  style={{
+                    color: dev.source === "live" ? theme.yg : theme.amber,
+                    fontSize: 9,
+                    fontWeight: "bold",
+                  }}
+                >
                   {dev.source === "live" ? "LIVE" : "BASE"}
                 </Text>
               </View>
@@ -500,7 +576,7 @@ function AnalyticsTab({ backendData }) {
         <Text style={styles.cardTitle}>Live Database Logs</Text>
         <View style={styles.insightList}>
           {backendData?.active_devices?.map((dev, idx) => (
-             <Insight
+            <Insight
               key={idx}
               type="warn"
               label="ACTIVE"
@@ -509,7 +585,12 @@ function AnalyticsTab({ backendData }) {
             />
           ))}
           {backendData?.active_devices?.length === 0 && (
-             <Insight type="alert" label="SYSTEM IDLE" text="All devices are currently powered off. Saving energy!" fill="0%" />
+            <Insight
+              type="alert"
+              label="SYSTEM IDLE"
+              text="All devices are currently powered off. Saving energy!"
+              fill="0%"
+            />
           )}
         </View>
       </View>
@@ -543,7 +624,10 @@ function PredictTab() {
     setLoading(true);
     setActiveModel("gemini");
     try {
-      const histArr = [45.2, 48.1, 46.5, 47.0, 42.1, 12.5, 10.8, 46.3, 49.2, 47.8, 48.5, 45.9, 13.1, 11.2];
+      const histArr = [
+        45.2, 48.1, 46.5, 47.0, 42.1, 12.5, 10.8, 46.3, 49.2, 47.8, 48.5, 45.9,
+        13.1, 11.2,
+      ];
       const response = await fetch(`${BACKEND_URL}/api/predict/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -589,23 +673,29 @@ function PredictTab() {
   };
 
   // Prepare historical chart
-  const histChartData = histData ? {
-    labels: histData.data.slice(-7).map(d => d.date.slice(5)),
-    datasets: [{ data: histData.data.slice(-7).map(d => d.kwh) }],
-  } : null;
+  const histChartData = histData
+    ? {
+        labels: histData.data.slice(-7).map((d) => d.date.slice(5)),
+        datasets: [{ data: histData.data.slice(-7).map((d) => d.kwh) }],
+      }
+    : null;
 
   return (
     <View>
       <View style={styles.pageHeader}>
         <Text style={styles.pageTitle}>AI Predictions</Text>
-        <Text style={styles.pageSub}>Dual Mode: Gemini AI + ML Model (scikit-learn)</Text>
+        <Text style={styles.pageSub}>electricity Prediction Model</Text>
       </View>
 
       {/* Historical Baseline Chart */}
       {histChartData && (
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>30-Day Historical Baseline (Kaggle Dataset)</Text>
-          <Text style={{ color: theme.textMuted, fontSize: 11, marginBottom: 10 }}>
+          <Text style={styles.cardTitle}>
+            30-Day Historical Baseline (Kaggle Dataset)
+          </Text>
+          <Text
+            style={{ color: theme.textMuted, fontSize: 11, marginBottom: 10 }}
+          >
             {histData.days} days | {histData.total_kwh} kWh total
           </Text>
           <BarChart
@@ -627,22 +717,45 @@ function PredictTab() {
       )}
 
       {/* Two Prediction Buttons */}
-      <View style={{ flexDirection: 'row', gap: 10, marginBottom: 16 }}>
+      <View style={{ flexDirection: "row", gap: 10, marginBottom: 16 }}>
         <TouchableOpacity
-          style={[styles.aiButton, { flex: 1, backgroundColor: activeModel === "gemini" ? theme.amber : theme.glassBg }]}
+          style={[
+            styles.aiButton,
+            {
+              flex: 1,
+              backgroundColor:
+                activeModel === "gemini" ? theme.amber : theme.glassBg,
+            },
+          ]}
           onPress={runGemini}
           disabled={loading}
         >
-          <Text style={[styles.aiButtonText, { color: activeModel === "gemini" ? theme.bg : theme.text }]}>
-            Gemini AI
+          <Text
+            style={[
+              styles.aiButtonText,
+              { color: activeModel === "gemini" ? theme.bg : theme.text },
+            ]}
+          >
+            Ai
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.aiButton, { flex: 1, backgroundColor: activeModel === "ml" ? theme.yg : theme.glassBg }]}
+          style={[
+            styles.aiButton,
+            {
+              flex: 1,
+              backgroundColor: activeModel === "ml" ? theme.yg : theme.glassBg,
+            },
+          ]}
           onPress={runML}
           disabled={loading}
         >
-          <Text style={[styles.aiButtonText, { color: activeModel === "ml" ? theme.bg : theme.text }]}>
+          <Text
+            style={[
+              styles.aiButtonText,
+              { color: activeModel === "ml" ? theme.bg : theme.text },
+            ]}
+          >
             ML Model
           </Text>
         </TouchableOpacity>
@@ -652,31 +765,90 @@ function PredictTab() {
         <View style={styles.loadingBox}>
           <ActivityIndicator color={theme.yg} />
           <Text style={styles.loadingText}>
-            {activeModel === "gemini" ? "Querying Gemini AI..." : "Running RandomForest inference..."}
+            {activeModel === "gemini"
+              ? "Running Model...."
+              : "Running Model..."}
           </Text>
         </View>
       )}
 
       {predictions && (
         <View style={{ marginTop: 10 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
-            <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: activeModel === "gemini" ? theme.amber : theme.yg, marginRight: 8 }} />
-            <Text style={{ color: theme.text, fontSize: 13, fontWeight: '600' }}>
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              marginBottom: 10,
+            }}
+          >
+            <View
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: 4,
+                backgroundColor:
+                  activeModel === "gemini" ? theme.amber : theme.yg,
+                marginRight: 8,
+              }}
+            />
+            <Text
+              style={{ color: theme.text, fontSize: 13, fontWeight: "600" }}
+            >
               Model: {modelName}
             </Text>
           </View>
 
           <View style={styles.metricsGrid}>
-            <MetricCard label="Tomorrow" val={`${predictions[0]?.predicted_kwh || 0} kWh`} color={theme.amber} />
-            <MetricCard label="Week Total" val={`\u20b9${totalCost || 0}`} color={theme.yg} />
+            <MetricCard
+              label="Tomorrow"
+              val={`${predictions[0]?.predicted_kwh || 0} kWh`}
+              color={theme.amber}
+            />
+            <MetricCard
+              label="Week Total"
+              val={`\u20b9${totalCost || 0}`}
+              color={theme.yg}
+            />
           </View>
 
-          <View style={[styles.card, { borderColor: activeModel === "gemini" ? theme.amber : theme.yg, backgroundColor: "rgba(174,234,154,0.05)" }]}>
-            <Text style={[styles.cardTitle, { color: activeModel === "gemini" ? theme.amber : theme.yg }]}>7-Day Breakdown</Text>
+          <View
+            style={[
+              styles.card,
+              {
+                borderColor: activeModel === "gemini" ? theme.amber : theme.yg,
+                backgroundColor: theme.glassHighlight,
+              },
+            ]}
+          >
+            <Text
+              style={[
+                styles.cardTitle,
+                { color: activeModel === "gemini" ? theme.amber : theme.yg },
+              ]}
+            >
+              7-Day Breakdown
+            </Text>
             {predictions.map((p, idx) => (
-              <View key={idx} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderColor: theme.border }}>
-                <Text style={{ color: theme.text }}>{p.day_name || `Day ${p.day_index}`}</Text>
-                <Text style={{ color: theme.textMuted }}>{p.predicted_kwh} kWh <Text style={{ color: theme.amber }}>{"\u20b9"}{p.estimated_cost}</Text></Text>
+              <View
+                key={idx}
+                style={{
+                  flexDirection: "row",
+                  justifyContent: "space-between",
+                  paddingVertical: 8,
+                  borderBottomWidth: 1,
+                  borderColor: theme.border,
+                }}
+              >
+                <Text style={{ color: theme.text }}>
+                  {p.day_name || `Day ${p.day_index}`}
+                </Text>
+                <Text style={{ color: theme.textMuted }}>
+                  {p.predicted_kwh} kWh{" "}
+                  <Text style={{ color: theme.amber }}>
+                    {"\u20b9"}
+                    {p.estimated_cost}
+                  </Text>
+                </Text>
               </View>
             ))}
           </View>
@@ -740,13 +912,14 @@ function HeatmapTab() {
   let grid;
   if (histData && histData.data.length >= 7) {
     const last7 = histData.data.slice(-7);
-    const maxKwh = Math.max(...last7.map(d => d.kwh));
-    grid = last7.map(d => {
+    const maxKwh = Math.max(...last7.map((d) => d.kwh));
+    grid = last7.map((d) => {
       // Create 12 cells (2-hour blocks) from daily data
       const baseIntensity = d.kwh / maxKwh;
       return Array.from({ length: 12 }).map((_, hi) => {
         // Working hours (blocks 4-8, i.e. 8am-4pm) are higher
-        const hourFactor = (hi >= 4 && hi <= 8) ? 0.8 : (hi >= 3 && hi <= 9) ? 0.4 : 0.1;
+        const hourFactor =
+          hi >= 4 && hi <= 8 ? 0.8 : hi >= 3 && hi <= 9 ? 0.4 : 0.1;
         return Math.min(1, baseIntensity * hourFactor + Math.random() * 0.1);
       });
     });
@@ -755,25 +928,50 @@ function HeatmapTab() {
       Array.from({ length: 12 }).map((_, hi) => {
         if (di < 5 && hi > 3 && hi < 9) return Math.random() * 0.8 + 0.2;
         return Math.random() * 0.2;
-      })
+      }),
     );
   }
 
-  const timeLabels = ["0", "2", "4", "6", "8", "10", "12", "14", "16", "18", "20", "22"];
+  const timeLabels = [
+    "0",
+    "2",
+    "4",
+    "6",
+    "8",
+    "10",
+    "12",
+    "14",
+    "16",
+    "18",
+    "20",
+    "22",
+  ];
 
   return (
     <View>
       <View style={styles.pageHeader}>
         <Text style={styles.pageTitle}>Usage Heatmap</Text>
         <Text style={styles.pageSub}>
-          {histData ? `Based on ${histData.days}-day Kaggle dataset` : "Loading historical data..."}
+          {histData
+            ? `Based on ${histData.days}-day Kaggle dataset`
+            : "Loading historical data..."}
         </Text>
       </View>
       <View style={styles.card}>
         {/* Time labels */}
-        <View style={{ flexDirection: 'row', marginLeft: 24, marginBottom: 4 }}>
+        <View style={{ flexDirection: "row", marginLeft: 24, marginBottom: 4 }}>
           {timeLabels.map((t, i) => (
-            <Text key={i} style={{ flex: 1, color: theme.textMuted, fontSize: 8, textAlign: 'center' }}>{t}</Text>
+            <Text
+              key={i}
+              style={{
+                flex: 1,
+                color: theme.textMuted,
+                fontSize: 8,
+                textAlign: "center",
+              }}
+            >
+              {t}
+            </Text>
           ))}
         </View>
         <View style={styles.hmContainer}>
@@ -801,17 +999,48 @@ function HeatmapTab() {
           ))}
         </View>
         {/* Legend */}
-        <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 12, gap: 16 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <View style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: theme.yg, marginRight: 4 }} />
+        <View
+          style={{
+            flexDirection: "row",
+            justifyContent: "center",
+            marginTop: 12,
+            gap: 16,
+          }}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center" }}>
+            <View
+              style={{
+                width: 12,
+                height: 12,
+                borderRadius: 2,
+                backgroundColor: theme.yg,
+                marginRight: 4,
+              }}
+            />
             <Text style={{ color: theme.textMuted, fontSize: 10 }}>Low</Text>
           </View>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <View style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: theme.amber, marginRight: 4 }} />
+          <View style={{ flexDirection: "row", alignItems: "center" }}>
+            <View
+              style={{
+                width: 12,
+                height: 12,
+                borderRadius: 2,
+                backgroundColor: theme.amber,
+                marginRight: 4,
+              }}
+            />
             <Text style={{ color: theme.textMuted, fontSize: 10 }}>Medium</Text>
           </View>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <View style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: theme.scarlet, marginRight: 4 }} />
+          <View style={{ flexDirection: "row", alignItems: "center" }}>
+            <View
+              style={{
+                width: 12,
+                height: 12,
+                borderRadius: 2,
+                backgroundColor: theme.scarlet,
+                marginRight: 4,
+              }}
+            />
             <Text style={{ color: theme.textMuted, fontSize: 10 }}>High</Text>
           </View>
         </View>
@@ -834,15 +1063,15 @@ function CalculatorTab() {
   if (u <= 100) {
     energyCost = u * 3.75;
   } else if (u <= 200) {
-    energyCost = 100 * 3.75 + (u - 100) * 4.60;
+    energyCost = 100 * 3.75 + (u - 100) * 4.6;
   } else if (u <= 400) {
-    energyCost = 100 * 3.75 + 100 * 4.60 + (u - 200) * 5.30;
+    energyCost = 100 * 3.75 + 100 * 4.6 + (u - 200) * 5.3;
   } else {
-    energyCost = 100 * 3.75 + 100 * 4.60 + 200 * 5.30 + (u - 400) * 5.75;
+    energyCost = 100 * 3.75 + 100 * 4.6 + 200 * 5.3 + (u - 400) * 5.75;
   }
 
   const fixedTotal = fc * d;
-  const electricityDuty = energyCost * 0.08;  // 8% duty
+  const electricityDuty = energyCost * 0.08; // 8% duty
   const total = energyCost + fixedTotal + electricityDuty;
 
   // Per day and per kWh
@@ -889,17 +1118,36 @@ function CalculatorTab() {
       </View>
 
       {/* Tariff slab info */}
-      <View style={[styles.card, { marginTop: 12, backgroundColor: 'rgba(255,255,255,0.03)' }]}>
-        <Text style={[styles.cardTitle, { fontSize: 12 }]}>Tariff Slabs Applied</Text>
+      <View
+        style={[
+          styles.card,
+          { marginTop: 12, backgroundColor: theme.glassHighlight },
+        ]}
+      >
+        <Text style={[styles.cardTitle, { fontSize: 12 }]}>
+          Tariff Slabs Applied
+        </Text>
         {[
           { range: "0-100 units", rate: "3.75" },
           { range: "101-200 units", rate: "4.60" },
           { range: "201-400 units", rate: "5.30" },
           { range: "400+ units", rate: "5.75" },
         ].map((slab, i) => (
-          <View key={i} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3 }}>
-            <Text style={{ color: theme.textMuted, fontSize: 11 }}>{slab.range}</Text>
-            <Text style={{ color: theme.text, fontSize: 11 }}>{"\u20b9"}{slab.rate}/unit</Text>
+          <View
+            key={i}
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              paddingVertical: 3,
+            }}
+          >
+            <Text style={{ color: theme.textMuted, fontSize: 11 }}>
+              {slab.range}
+            </Text>
+            <Text style={{ color: theme.text, fontSize: 11 }}>
+              {"\u20b9"}
+              {slab.rate}/unit
+            </Text>
           </View>
         ))}
       </View>
@@ -907,13 +1155,19 @@ function CalculatorTab() {
       <View style={styles.calcResult}>
         <Text style={styles.calcResultLabel}>Est. Monthly Bill</Text>
         <Text style={styles.calcResultTotal}>
-          {"\u20b9"}{total.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ",")}
+          {"\u20b9"}
+          {total.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ",")}
         </Text>
         <Text style={styles.calcSubText}>
-          Energy: {"\u20b9"}{energyCost.toFixed(0)} | Fixed: {"\u20b9"}{fixedTotal.toFixed(0)} | Duty: {"\u20b9"}{electricityDuty.toFixed(0)}
+          Energy: {"\u20b9"}
+          {energyCost.toFixed(0)} | Fixed: {"\u20b9"}
+          {fixedTotal.toFixed(0)} | Duty: {"\u20b9"}
+          {electricityDuty.toFixed(0)}
         </Text>
         <Text style={[styles.calcSubText, { marginTop: 4, color: theme.yg }]}>
-          {"\u20b9"}{perDay.toFixed(2)}/day | {"\u20b9"}{perKwh.toFixed(2)}/kWh
+          {"\u20b9"}
+          {perDay.toFixed(2)}/day | {"\u20b9"}
+          {perKwh.toFixed(2)}/kWh
         </Text>
       </View>
     </View>
@@ -958,19 +1212,24 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    padding: 20,
-    paddingTop: 50,
-    backgroundColor: theme.glassBg,
+    padding: 16,
+    paddingTop: 18,
+    backgroundColor: theme.card,
     borderBottomWidth: 1,
     borderColor: theme.border,
   },
   logoTitle: {
     color: theme.amber,
-    fontSize: 16,
-    fontWeight: "700",
-    letterSpacing: 2,
+    fontSize: 17,
+    fontWeight: "800",
+    letterSpacing: 1.6,
   },
-  logoSub: { color: theme.textMuted, fontSize: 10, marginTop: 2 },
+  logoSub: {
+    color: theme.textMuted,
+    fontSize: 10,
+    marginTop: 3,
+    letterSpacing: 1,
+  },
   statusWrap: { flexDirection: "row", alignItems: "center" },
   pulse: {
     width: 8,
@@ -984,41 +1243,41 @@ const styles = StyleSheet.create({
   navContainer: {
     borderBottomWidth: 1,
     borderColor: theme.border,
-    backgroundColor: "rgba(26,29,31,0.9)",
+    backgroundColor: theme.card,
   },
   navScroll: {
     paddingHorizontal: 10,
-    paddingVertical: 12,
+    paddingVertical: 9,
     flexDirection: "row",
   },
   navItem: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginRight: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 4,
+    marginRight: 5,
   },
   navItemActive: {
-    backgroundColor: "rgba(139,160,167,0.1)",
+    backgroundColor: "#EEF4EE",
     borderWidth: 1,
-    borderColor: "rgba(139,160,167,0.3)",
+    borderColor: theme.yg,
   },
   navText: { color: theme.textMuted, fontSize: 13 },
   navTextActive: { color: theme.amber, fontWeight: "600" },
 
-  mainContent: { flex: 1, padding: 16 },
-  pageHeader: { marginBottom: 20 },
-  pageTitle: { color: theme.text, fontSize: 22, fontWeight: "bold" },
+  mainContent: { flex: 1, padding: 14 },
+  pageHeader: { marginBottom: 16 },
+  pageTitle: { color: theme.text, fontSize: 21, fontWeight: "800" },
   pageSub: { color: theme.textMuted, fontSize: 13, marginTop: 4 },
 
   dateTabs: {
     flexDirection: "row",
-    backgroundColor: "rgba(255,255,255,0.05)",
-    borderRadius: 10,
+    backgroundColor: theme.glassHighlight,
+    borderRadius: 4,
     padding: 4,
     marginBottom: 20,
     alignSelf: "flex-start",
   },
-  dateTab: { paddingVertical: 6, paddingHorizontal: 16, borderRadius: 8 },
+  dateTab: { paddingVertical: 6, paddingHorizontal: 16, borderRadius: 4 },
   dateTabActive: { backgroundColor: theme.glassBg },
   dateTabText: { color: theme.textMuted, fontSize: 12 },
   dateTabTextActive: { color: theme.text, fontWeight: "bold" },
@@ -1030,22 +1289,22 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   metricCard: {
-    width: "48%",
+    width: "48.5%",
     backgroundColor: theme.glassBg,
-    padding: 16,
-    borderRadius: 14,
+    padding: 13,
+    borderRadius: 5,
     borderWidth: 1,
     borderColor: theme.border,
     marginBottom: 12,
   },
   metricLabel: { color: theme.textMuted, fontSize: 11, marginBottom: 8 },
-  metricVal: { fontSize: 22, fontWeight: "bold" },
+  metricVal: { fontSize: 21, fontWeight: "800" },
   metricSub: { fontSize: 11, marginTop: 6 },
 
   card: {
     backgroundColor: theme.glassBg,
-    padding: 16,
-    borderRadius: 16,
+    padding: 14,
+    borderRadius: 6,
     borderWidth: 1,
     borderColor: theme.border,
     marginBottom: 16,
@@ -1053,8 +1312,8 @@ const styles = StyleSheet.create({
   cardTitle: {
     color: theme.text,
     fontSize: 15,
-    fontWeight: "600",
-    marginBottom: 16,
+    fontWeight: "800",
+    marginBottom: 12,
   },
 
   // Custom Bar Chart Styles
@@ -1072,7 +1331,7 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
     marginHorizontal: 1,
   },
-  bar: { width: "80%", borderRadius: 4 },
+  bar: { width: "80%", borderRadius: 1 },
   barLabels: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -1083,9 +1342,9 @@ const styles = StyleSheet.create({
   // Insight List Styles
   insightList: { gap: 10 },
   insightCard: {
-    backgroundColor: "rgba(255,255,255,0.03)",
+    backgroundColor: theme.glassHighlight,
     padding: 14,
-    borderRadius: 10,
+    borderRadius: 4,
     borderWidth: 1,
     borderColor: theme.border,
     borderLeftWidth: 4,
@@ -1099,19 +1358,19 @@ const styles = StyleSheet.create({
   insightText: { color: theme.text, fontSize: 13, lineHeight: 18 },
   barTrack: {
     height: 4,
-    backgroundColor: "rgba(255,255,255,0.1)",
-    borderRadius: 2,
+    backgroundColor: "#E2E5DF",
+    borderRadius: 1,
     marginTop: 10,
     overflow: "hidden",
   },
-  barFill: { height: "100%", borderRadius: 2 },
+  barFill: { height: "100%", borderRadius: 1 },
   badgeHigh: {
-    backgroundColor: "rgba(223,41,53,0.12)",
+    backgroundColor: "#F8E7E8",
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 6,
+    borderRadius: 4,
     borderWidth: 1,
-    borderColor: "rgba(223,41,53,0.3)",
+    borderColor: "#E8B9BE",
   },
   badgeTextHigh: { color: theme.scarlet, fontSize: 10, fontWeight: "bold" },
 
@@ -1127,7 +1386,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderColor: "rgba(255,255,255,0.04)",
+    borderColor: theme.border,
   },
   tableHeadText: { color: theme.textMuted, fontSize: 10, fontWeight: "bold" },
   tableCell: { flex: 1 },
@@ -1138,15 +1397,15 @@ const styles = StyleSheet.create({
   hmContainer: { flexDirection: "column", gap: 6 },
   hmRow: { flexDirection: "row", alignItems: "center", gap: 4 },
   hmDayLabel: { color: theme.textMuted, fontSize: 12, width: 20 },
-  hmCell: { flex: 1, height: 24, borderRadius: 4 },
+  hmCell: { flex: 1, height: 22, borderRadius: 2 },
 
   // Cost Calc
   calcPanel: {
-    backgroundColor: "rgba(139,160,167,0.05)",
-    padding: 20,
-    borderRadius: 16,
+    backgroundColor: theme.card,
+    padding: 16,
+    borderRadius: 6,
     borderWidth: 1,
-    borderColor: "rgba(139,160,167,0.2)",
+    borderColor: theme.border,
   },
   calcTitle: {
     color: theme.amber,
@@ -1158,18 +1417,18 @@ const styles = StyleSheet.create({
   inputGroup: { marginBottom: 12 },
   inputLabel: { color: theme.textMuted, fontSize: 12, marginBottom: 6 },
   input: {
-    backgroundColor: "rgba(0,0,0,0.5)",
+    backgroundColor: theme.card,
     borderWidth: 1,
     borderColor: theme.border,
-    borderRadius: 8,
+    borderRadius: 4,
     color: theme.text,
     paddingHorizontal: 12,
     paddingVertical: 10,
   },
   calcResult: {
-    backgroundColor: "rgba(139,160,167,0.1)",
+    backgroundColor: "#EEF4EE",
     padding: 16,
-    borderRadius: 12,
+    borderRadius: 4,
     marginTop: 10,
   },
   calcResultLabel: {
@@ -1187,11 +1446,11 @@ const styles = StyleSheet.create({
 
   // AI Button
   aiButton: {
-    backgroundColor: "rgba(174,234,154,0.1)",
+    backgroundColor: "#F6F8F3",
     borderWidth: 1,
-    borderColor: "rgba(174,234,154,0.3)",
+    borderColor: theme.yg,
     padding: 12,
-    borderRadius: 10,
+    borderRadius: 4,
     alignItems: "center",
     marginBottom: 20,
   },
