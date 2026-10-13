@@ -1,0 +1,37 @@
+{
+  "name": "seros-smart-energy",
+  "private": true,
+  "version": "1.0.0",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@expo/vector-icons": "^15.0.2",
+    "@react-native-async-storage/async-storage": "^2.2.0",
+    "@google/genai": "^2.4.0",
+    "dotenv": "^17.2.3",
+    "expo": "^57.0.27",
+    "expo-font": "~57.0.4",
+    "expo-status-bar": "^57.0.1",
+    "express": "^4.21.2",
+    "lucide-react": "^0.546.0",
+    "motion": "^12.23.24",
+    "react": "19.2.3",
+    "react-native": "0.86.3",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-svg": "15.15.4",
+    "react-native-web": "^0.21.4"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.14.0",
+    "@types/react": "~19.2.4",
+    "@types/react-dom": "~19.2.3",
+    "typescript": "~6.0.3"
+  }
+}

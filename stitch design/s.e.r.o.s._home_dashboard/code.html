@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+
+<html lang="en"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/><meta content="mobile_tab" name="shell-type"/><link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:ital,opsz,wght@0,6..12,400..800;1,6..12,400..800&amp;display=swap" rel="stylesheet"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { "colors": { "tertiary-fixed": "#ffddb4", "on-secondary-fixed": "#001e2c", "on-primary-fixed-variant": "#005228", "surface-container-high": "#d9edde", "danger": "#B93832", "surface-container": "#dff3e4", "surface-yellow": "#FFF4CC", "on-error": "#ffffff", "on-secondary-fixed-variant": "#004c69", "primary-pressed": "#1F693B", "secondary-fixed-dim": "#90cef3", "tertiary-fixed-dim": "#ffb955", "primary-fixed-dim": "#80d997", "on-secondary": "#ffffff", "primary-fixed": "#9bf6b1", "outline": "#6f7a6f", "surface-dim": "#cbdfd0", "on-background": "#0e1f16", "inverse-primary": "#80d997", "background": "#eafeef", "text-secondary": "#68766B", "surface-peach": "#FFF0E4", "surface-container-highest": "#d3e7d9", "secondary-fixed": "#c4e7ff", "danger-surface": "#FCE8E6", "secondary-container": "#9cd9ff", "primary-container": "#27834a", "on-tertiary-fixed": "#291800", "on-tertiary-container": "#fffaf8", "surface-green": "#EAF5DD", "error-container": "#ffdad6", "accent-lime": "#DFF3A3", "error": "#ba1a1a", "info-surface": "#E5F2F8", "on-error-container": "#93000a", "surface-container-lowest": "#ffffff", "on-tertiary": "#ffffff", "surface-variant": "#d3e7d9", "canvas": "#F7F4E8", "primary": "#006934", "on-surface-variant": "#3f4940", "border-subtle": "#E3E5D8", "surface": "#FFFFFF", "on-tertiary-fixed-variant": "#633f00", "inverse-surface": "#23342a", "on-secondary-container": "#176081", "tertiary": "#7e5200", "surface-bright": "#eafeef", "outline-variant": "#becabd", "on-primary-container": "#eeffed", "tertiary-container": "#9f6800", "on-surface": "#0e1f16", "on-primary": "#ffffff", "on-primary-fixed": "#00210c", "surface-tint": "#016d37", "inverse-on-surface": "#e2f6e7", "secondary": "#1e6585", "surface-container-low": "#e4f9ea" }, "borderRadius": { "DEFAULT": "1rem", "lg": "2rem", "xl": "3rem", "full": "9999px" }, "spacing": { "space-sm": "0.75rem", "margin-desktop": "2rem", "space-lg": "1.5rem", "space-xl": "2rem", "margin-tablet": "1.5rem", "margin": "1rem", "space-md": "1rem", "space-xs": "0.5rem", "gutter": "1rem", "space-2xl": "3rem", "gutter-desktop": "1.5rem" }, "fontFamily": { "metric-display": ["Nunito Sans"], "headline-md": ["Nunito Sans"], "body-md": ["Nunito Sans"], "body-sm": ["Nunito Sans"], "headline-lg": ["Nunito Sans"], "label-lg": ["Nunito Sans"], "headline-xl": ["Nunito Sans"], "label-sm": ["Nunito Sans"], "headline-lg-mobile": ["Nunito Sans"], "headline-xl-mobile": ["Nunito Sans"], "headline-sm": ["Nunito Sans"], "body-lg": ["Nunito Sans"], "label-md": ["Nunito Sans"] }, "fontSize": { "metric-display": ["36px", { "lineHeight": "40px", "fontWeight": "800" }], "headline-md": ["22px", { "lineHeight": "28px", "fontWeight": "700" }], "body-md": ["16px", { "lineHeight": "24px", "fontWeight": "400" }], "body-sm": ["14px", { "lineHeight": "20px", "fontWeight": "400" }], "headline-lg": ["28px", { "lineHeight": "36px", "fontWeight": "700" }], "label-lg": ["16px", { "lineHeight": "20px", "fontWeight": "700" }], "headline-xl": ["36px", { "lineHeight": "44px", "letterSpacing": "-0.02em", "fontWeight": "800" }], "label-sm": ["13px", { "lineHeight": "16px", "fontWeight": "600" }], "headline-lg-mobile": ["24px", { "lineHeight": "32px", "fontWeight": "700" }], "headline-xl-mobile": ["28px", { "lineHeight": "36px", "letterSpacing": "-0.01em", "fontWeight": "800" }], "headline-sm": ["18px", { "lineHeight": "24px", "fontWeight": "700" }], "body-lg": ["18px", { "lineHeight": "28px", "fontWeight": "400" }], "label-md": ["14px", { "lineHeight": "18px", "fontWeight": "700" }] } } } };</script><style>@layer base{html,body{width:100vw;margin:0;padding:0;}body{overscroll-behavior:none;background-color:#F7F4E8;}.pb-safe{padding-bottom:env(safe-area-inset-bottom,0px);}.pt-safe{padding-top:env(safe-area-inset-top,0px);}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head><body class="bg-canvas text-on-surface font-body-md text-body-md flex flex-col min-h-screen"><header class="fixed top-0 inset-x-0 z-50 bg-canvas/90 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)] pt-safe"><div class="h-20 px-margin flex items-center justify-between gap-space-sm"><div class="flex flex-col"><div class="flex items-center gap-space-xs"><span class="font-headline-sm text-headline-sm text-on-surface tracking-tight font-extrabold">S.E.R.O.S.</span><div class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-surface-green text-primary"><span class="w-2.5 h-2.5 rounded-full bg-primary-container animate-pulse"></span><span class="font-label-sm text-label-sm font-bold text-on-surface tracking-wide">Connected &amp; Active</span></div></div><span class="font-label-sm text-label-sm text-text-secondary mt-0.5">Home</span></div><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center shrink-0"><span class="material-symbols-outlined text-on-primary text-[18px]">person</span></div></div></header><main class="flex-1 flex flex-col relative w-full px-margin pt-20 pb-28 bg-canvas"><div class="flex flex-col w-full gap-space-lg">
+<!-- Friendly Audio & Status Greeting Card -->
+<section class="w-full bg-surface rounded-lg p-space-md shadow-sm flex flex-col gap-space-sm relative overflow-hidden">
+<div class="flex items-center justify-between gap-space-xs">
+<div class="flex items-center gap-space-xs min-w-0">
+<span aria-hidden="true" class="text-3xl select-none">☀️</span>
+<div class="flex flex-col min-w-0">
+<span class="font-headline-lg-mobile text-headline-lg-mobile text-on-surface font-extrabold tracking-tight truncate">Good morning!</span>
+<span class="font-label-md text-label-md text-text-secondary truncate">Smart Campus • Classroom 101</span>
+</div>
+</div>
+<!-- Audio Guidance "Listen" Pill Button -->
+<button aria-label="Listen to voice summary of this screen" class="flex items-center gap-1.5 px-3 py-2 bg-surface-yellow active:bg-tertiary-fixed text-on-surface rounded-full shadow-sm shrink-0 transition-transform active:scale-95 touch-manipulation min-h-[48px]" id="voiceHelpBtn">
+<span class="material-symbols-outlined text-primary text-[24px]">volume_up</span>
+<span class="font-label-lg text-label-lg font-bold text-on-surface">Listen</span>
+</button>
+</div>
+<!-- Micro Audio Player Toast (Revealed upon clicking "Listen") -->
+<div class="hidden flex items-center justify-between bg-surface-container rounded-full px-4 py-2 mt-1 animate-pulse" id="audioToast">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-[20px]">graphic_eq</span>
+<span class="font-label-sm text-label-sm text-on-surface font-bold">Speaking: "All systems safe. 5 people present."</span>
+</div>
+<button aria-label="Stop audio" class="p-1 text-on-surface-variant hover:text-on-surface" id="closeAudioBtn">
+<span class="material-symbols-outlined text-[18px]">close</span>
+</button>
+</div>
+</section>
+<!-- System Health Big Banner (Calm Reassurance) -->
+<section class="w-full bg-surface-green text-on-surface rounded-lg p-space-md shadow-sm flex items-center gap-space-md">
+<div class="w-14 h-14 rounded-full bg-primary flex items-center justify-center shrink-0 shadow-sm">
+<span class="material-symbols-outlined text-on-primary text-[32px]" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+</div>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-1.5 flex-wrap">
+<span class="font-headline-sm text-headline-sm text-primary font-black tracking-tight">System Working Normally</span>
+</div>
+<span class="font-body-md text-body-md text-on-surface-variant font-bold mt-0.5">3 of 4 Rooms Active • Everything in order</span>
+</div>
+</section>
+<!-- Big Visual Metrics (Playful Utility Grid) -->
+<section class="flex flex-col gap-space-xs">
+<div class="flex items-center justify-between px-1">
+<span class="font-headline-sm text-headline-sm text-on-surface font-extrabold">Overview Right Now</span>
+<span class="font-label-sm text-label-sm text-text-secondary">Updated 1m ago</span>
+</div>
+<div class="grid grid-cols-2 gap-space-sm">
+<!-- Metric 1: People Present -->
+<div class="bg-surface rounded-lg p-space-md shadow-sm flex flex-col justify-between gap-space-xs min-h-[148px]">
+<div class="flex items-center justify-between">
+<div class="w-11 h-11 rounded-full bg-surface-yellow flex items-center justify-center">
+<span class="material-symbols-outlined text-on-surface text-[26px]" style="font-variation-settings: 'FILL' 1;">groups</span>
+</div>
+<span class="px-2 py-0.5 rounded-full bg-surface-yellow text-on-surface font-label-sm text-label-sm font-bold">Present</span>
+</div>
+<div class="flex flex-col">
+<span class="font-headline-xl-mobile text-headline-xl-mobile text-on-surface font-extrabold tracking-tight">5 People</span>
+<span class="font-body-sm text-body-sm text-text-secondary font-semibold">Across 2 rooms</span>
+</div>
+</div>
+<!-- Metric 2: Power Use -->
+<div class="bg-surface rounded-lg p-space-md shadow-sm flex flex-col justify-between gap-space-xs min-h-[148px]">
+<div class="flex items-center justify-between">
+<div class="w-11 h-11 rounded-full bg-surface-green flex items-center justify-center">
+<span class="material-symbols-outlined text-primary text-[26px]" style="font-variation-settings: 'FILL' 1;">bolt</span>
+</div>
+<span class="px-2 py-0.5 rounded-full bg-surface-green text-primary font-label-sm text-label-sm font-bold">Great!</span>
+</div>
+<div class="flex flex-col">
+<span class="font-headline-xl-mobile text-headline-xl-mobile text-primary font-extrabold tracking-tight">120 W</span>
+<span class="font-body-sm text-body-sm text-text-secondary font-semibold">Very low use</span>
+</div>
+</div>
+<!-- Metric 3: Money Saved Today (Spans 2 columns for celebratory emphasis) -->
+<div class="col-span-2 bg-surface rounded-lg p-space-md shadow-sm flex items-center justify-between gap-space-md">
+<div class="flex items-center gap-space-sm min-w-0">
+<div class="w-13 h-13 p-2.5 rounded-full bg-surface-peach flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-primary text-[32px]" style="font-variation-settings: 'FILL' 1;">savings</span>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="font-label-md text-label-md text-text-secondary font-bold">Saved Today</span>
+<span class="font-headline-lg-mobile text-headline-lg-mobile text-on-surface font-black">₹142 saved</span>
+</div>
+</div>
+<div class="flex items-center gap-1 bg-surface-green px-3 py-1.5 rounded-full shrink-0">
+<span class="material-symbols-outlined text-primary text-[18px]">eco</span>
+<span class="font-label-sm text-label-sm text-primary font-bold">Eco Target Met</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Quick Large Touch Action Buttons -->
+<section class="flex flex-col gap-space-xs">
+<div class="flex items-center justify-between px-1">
+<span class="font-headline-sm text-headline-sm text-on-surface font-extrabold">Helpful Actions</span>
+<span class="font-label-sm text-label-sm text-text-secondary">Tap any button</span>
+</div>
+<div class="flex flex-col gap-2.5">
+<!-- Action 1: Live Camera (Primary) -->
+<button class="w-full min-h-[56px] px-space-md py-3 bg-primary active:bg-primary-pressed text-on-primary rounded-full shadow-sm flex items-center justify-between gap-space-sm transition-transform active:scale-[0.99] touch-manipulation">
+<div class="flex items-center gap-3">
+<div class="w-9 h-9 rounded-full bg-surface/20 flex items-center justify-center">
+<span class="material-symbols-outlined text-[24px]">videocam</span>
+</div>
+<span class="font-label-lg text-label-lg font-bold">Check Live Camera</span>
+</div>
+<span class="material-symbols-outlined text-[22px]">arrow_forward</span>
+</button>
+<!-- Action 2: Turn off empty rooms (Warm Peach, friendly utility) -->
+<button class="w-full min-h-[56px] px-space-md py-3 bg-surface-peach active:bg-tertiary-fixed text-on-surface rounded-full shadow-sm flex items-center justify-between gap-space-sm transition-transform active:scale-[0.99] touch-manipulation" id="turnOffEmptyBtn">
+<div class="flex items-center gap-3">
+<div class="w-9 h-9 rounded-full bg-surface flex items-center justify-center shadow-xs">
+<span class="material-symbols-outlined text-danger text-[24px]">light_off</span>
+</div>
+<div class="flex flex-col text-left">
+<span class="font-label-lg text-label-lg font-extrabold text-on-surface">Turn Off Empty Rooms</span>
+<span class="font-label-sm text-label-sm text-text-secondary font-medium">Saves power instantly</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-[22px] text-text-secondary">power_settings_new</span>
+</button>
+<!-- Action 3: View Energy Report (Cream/Surface clean card) -->
+<button class="w-full min-h-[56px] px-space-md py-3 bg-surface active:bg-surface-container text-on-surface rounded-full shadow-sm flex items-center justify-between gap-space-sm transition-transform active:scale-[0.99] touch-manipulation">
+<div class="flex items-center gap-3">
+<div class="w-9 h-9 rounded-full bg-info-surface flex items-center justify-center shadow-xs">
+<span class="material-symbols-outlined text-secondary text-[24px]">bar_chart</span>
+</div>
+<span class="font-label-lg text-label-lg font-bold">View Energy Report</span>
+</div>
+<span class="material-symbols-outlined text-[22px] text-text-secondary">chevron_right</span>
+</button>
+</div>
+</section>
+<!-- Active Rooms at a Glance -->
+<section class="flex flex-col gap-space-xs">
+<div class="flex items-center justify-between px-1">
+<span class="font-headline-sm text-headline-sm text-on-surface font-extrabold">Rooms at a Glance</span>
+<span class="font-label-md text-label-md font-bold text-primary">All 4 Rooms</span>
+</div>
+<div class="flex flex-col gap-space-md">
+<!-- Room Card 1: Room 101 - Smart Lab -->
+<div class="w-full bg-surface rounded-lg p-space-md shadow-sm flex flex-col gap-space-md relative overflow-hidden">
+<!-- Room Heading and Live Status Pill -->
+<div class="flex items-start justify-between gap-space-xs">
+<div class="flex items-center gap-space-xs min-w-0">
+<div class="w-12 h-12 rounded-lg bg-surface-green flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-primary text-[28px]">science</span>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="font-headline-md text-headline-md text-on-surface font-bold truncate">Room 101</span>
+<span class="font-label-sm text-label-sm text-text-secondary">Smart Computer Lab</span>
+</div>
+</div>
+<div class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface-yellow text-on-surface shrink-0">
+<span class="w-2.5 h-2.5 rounded-full bg-tertiary-container animate-pulse"></span>
+<span class="font-label-sm text-label-sm font-extrabold">2 people inside</span>
+</div>
+</div>
+<!-- Room Device Status Pills -->
+<div class="grid grid-cols-2 gap-space-xs bg-canvas rounded-lg p-2.5">
+<div class="flex items-center gap-2">
+<div class="w-8 h-8 rounded-full bg-surface-green flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-primary text-[18px]">mode_fan</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm font-bold text-on-surface">Fans</span>
+<span class="font-body-sm text-body-sm text-primary font-bold">ON (Zone A)</span>
+</div>
+</div>
+<div class="flex items-center gap-2">
+<div class="w-8 h-8 rounded-full bg-surface-green flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-primary text-[18px]">lightbulb</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm font-bold text-on-surface">Lights</span>
+<span class="font-body-sm text-body-sm text-primary font-bold">ON (50%)</span>
+</div>
+</div>
+</div>
+<!-- Action Target -->
+<div class="flex items-center gap-space-sm pt-1">
+<button class="flex-1 min-h-[50px] bg-primary active:bg-primary-pressed text-on-primary rounded-full font-label-lg text-label-lg font-bold flex items-center justify-center gap-2 shadow-sm transition-transform active:scale-95 touch-manipulation">
+<span class="material-symbols-outlined text-[20px]">meeting_room</span>
+<span>View Room 101</span>
+</button>
+<button aria-label="Quick adjust settings for Room 101" class="w-13 h-13 min-h-[50px] min-w-[50px] rounded-full bg-surface-container active:bg-surface-container-high text-on-surface flex items-center justify-center shrink-0 shadow-sm transition-transform active:scale-95 touch-manipulation">
+<span class="material-symbols-outlined text-[24px]">tune</span>
+</button>
+</div>
+</div>
+<!-- Room Card 2: Library Cluster -->
+<div class="w-full bg-surface rounded-lg p-space-md shadow-sm flex flex-col gap-space-md relative overflow-hidden">
+<!-- Room Heading and Live Status Pill -->
+<div class="flex items-start justify-between gap-space-xs">
+<div class="flex items-center gap-space-xs min-w-0">
+<div class="w-12 h-12 rounded-lg bg-surface-container flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-on-surface-variant text-[28px]">local_library</span>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="font-headline-md text-headline-md text-on-surface font-bold truncate">Library Cluster</span>
+<span class="font-label-sm text-label-sm text-text-secondary">Study Hall &amp; Stacks</span>
+</div>
+</div>
+<div class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface-peach text-on-surface shrink-0">
+<span class="material-symbols-outlined text-[16px] text-tertiary">timer</span>
+<span class="font-label-sm text-label-sm font-extrabold text-on-surface">Empty (Off in 4m)</span>
+</div>
+</div>
+<!-- Room Device Status Pills -->
+<div class="grid grid-cols-2 gap-space-xs bg-canvas rounded-lg p-2.5">
+<div class="flex items-center gap-2">
+<div class="w-8 h-8 rounded-full bg-surface-container-high flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-text-secondary text-[18px]">mode_fan_off</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm font-bold text-on-surface">Fans</span>
+<span class="font-body-sm text-body-sm text-text-secondary font-bold">OFF (Sleeping)</span>
+</div>
+</div>
+<div class="flex items-center gap-2">
+<div class="w-8 h-8 rounded-full bg-surface-container-high flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-text-secondary text-[18px]">light_off</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm font-bold text-on-surface">Lights</span>
+<span class="font-body-sm text-body-sm text-text-secondary font-bold">OFF</span>
+</div>
+</div>
+</div>
+<!-- Action Target -->
+<div class="flex items-center gap-space-sm pt-1">
+<button class="flex-1 min-h-[50px] bg-surface active:bg-surface-green text-primary border-none rounded-full font-label-lg text-label-lg font-bold flex items-center justify-center gap-2 shadow-sm transition-transform active:scale-95 touch-manipulation bg-surface-container-low">
+<span class="material-symbols-outlined text-[20px]">meeting_room</span>
+<span>View Library</span>
+</button>
+<button class="min-h-[50px] px-4 rounded-full bg-surface-peach active:bg-tertiary-fixed text-on-surface flex items-center justify-center shrink-0 shadow-sm transition-transform active:scale-95 font-label-sm text-label-sm font-bold touch-manipulation">
+            Turn Off Now
+          </button>
+</div>
+</div>
+</div>
+</section>
+<!-- Friendly Campus Tip Footer Banner -->
+<footer class="w-full bg-surface-yellow text-on-surface rounded-lg p-space-md shadow-sm flex items-center gap-space-sm mb-4">
+<span class="material-symbols-outlined text-primary text-[28px] shrink-0" style="font-variation-settings: 'FILL' 1;">lightbulb</span>
+<div class="flex flex-col min-w-0">
+<span class="font-label-md text-label-md font-bold text-on-surface">Friendly Tip</span>
+<span class="font-body-sm text-body-sm text-on-surface">S.E.R.O.S. automatically dims lights when bright sunshine enters Classroom 101 windows.</span>
+</div>
+</footer>
+</div>
+<!-- Interactive Client micro-script for Elderly/Low-literacy usability -->
+<script>
+  (function() {
+    // 1. Audio Voice Guidance Toggle
+    const voiceHelpBtn = document.getElementById('voiceHelpBtn');
+    const audioToast = document.getElementById('audioToast');
+    const closeAudioBtn = document.getElementById('closeAudioBtn');
+
+    if (voiceHelpBtn && audioToast && closeAudioBtn) {
+      voiceHelpBtn.addEventListener('click', function() {
+        audioToast.classList.remove('hidden');
+        if ('speechSynthesis' in window) {
+          window.speechSynthesis.cancel();
+          const utterance = new SpeechSynthesisUtterance("Good morning! S.E.R.O.S. system is working normally. Five people detected. Current power usage is one hundred and twenty watts, which is very low. You have saved one hundred and forty two rupees today.");
+          utterance.rate = 0.9; // gentle and readable
+          window.speechSynthesis.speak(utterance);
+        }
+      });
+
+      closeAudioBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        audioToast.classList.add('hidden');
+        if ('speechSynthesis' in window) {
+          window.speechSynthesis.cancel();
+        }
+      });
+    }
+
+    // 2. Turn Off Empty Rooms feedback button
+    const turnOffEmptyBtn = document.getElementById('turnOffEmptyBtn');
+    if (turnOffEmptyBtn) {
+      turnOffEmptyBtn.addEventListener('click', function() {
+        const originalText = turnOffEmptyBtn.innerHTML;
+        turnOffEmptyBtn.innerHTML = `
+          <div class="flex items-center gap-3">
+            <span class="material-symbols-outlined text-primary text-[24px]">done_all</span>
+            <span class="font-label-lg text-label-lg font-bold text-primary">All Empty Rooms Turned Off!</span>
+          </div>
+        `;
+        turnOffEmptyBtn.classList.remove('bg-surface-peach');
+        turnOffEmptyBtn.classList.add('bg-surface-green');
+        
+        setTimeout(function() {
+          turnOffEmptyBtn.innerHTML = originalText;
+          turnOffEmptyBtn.classList.remove('bg-surface-green');
+          turnOffEmptyBtn.classList.add('bg-surface-peach');
+        }, 3200);
+      });
+    }
+  })();
+</script></main><nav class="fixed bottom-0 inset-x-0 z-50 pb-safe bg-surface/90 backdrop-blur-xl shadow-[0_-2px_12px_rgba(38,55,45,0.06)]" data-active-classes="bg-surface-green text-primary font-bold"><div class="flex justify-around items-center h-20 px-space-xs gap-1"><a aria-current="page" class="flex flex-col items-center justify-center min-h-[52px] min-w-[56px] py-1.5 px-2 rounded-lg transition-colors bg-surface-green text-primary font-bold" data-path="home" href="#"><span class="material-symbols-outlined text-[26px]">home</span><span class="font-label-sm text-label-sm mt-0.5">Home</span></a><a class="flex flex-col items-center justify-center min-h-[52px] min-w-[56px] py-1.5 px-2 rounded-lg text-on-surface-variant hover:text-on-surface transition-colors" data-path="rooms" href="#"><span class="material-symbols-outlined text-[26px]">meeting_room</span><span class="font-label-sm text-label-sm mt-0.5">Rooms</span></a><a class="flex flex-col items-center justify-center min-h-[52px] min-w-[56px] py-1.5 px-2 rounded-lg text-on-surface-variant hover:text-on-surface transition-colors" data-path="energy" href="#"><span class="material-symbols-outlined text-[26px]">bolt</span><span class="font-label-sm text-label-sm mt-0.5">Energy</span></a><a class="flex flex-col items-center justify-center min-h-[52px] min-w-[56px] py-1.5 px-2 rounded-lg text-on-surface-variant hover:text-on-surface transition-colors" data-path="devices" href="#"><span class="material-symbols-outlined text-[26px]">power_settings_new</span><span class="font-label-sm text-label-sm mt-0.5">Devices</span></a><a class="flex flex-col items-center justify-center min-h-[52px] min-w-[56px] py-1.5 px-2 rounded-lg text-on-surface-variant hover:text-on-surface transition-colors" data-path="more" href="#"><span class="material-symbols-outlined text-[26px]">grid_view</span><span class="font-label-sm text-label-sm mt-0.5">More</span></a></div></nav></body></html>

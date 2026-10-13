@@ -1,0 +1,22 @@
+# Smart Energy Analysis Dashboard Requirements
+
+To build a fully dynamic analysis page based on the collected occupancy and device data, the following features and data points are required:
+
+## 1. Required Database Metrics (to be stored in SQLite/Neon)
+* **Timestamp**: Exact start and end time of every device session.
+* **Duration**: Total time a device (e.g., Left Fan, Right Fan) was active in seconds/minutes.
+* **Power Rating**: Hardcoded or configurable wattage for each device (e.g., Fan = 60W, AC = 1500W).
+* **Energy Consumed (kWh)**: Calculated via `(Duration in hours) * (Power Rating in kW)`.
+* **Occupancy Count**: Average number of people in the room during the session.
+
+## 2. Dynamic Analysis Page Features
+* **Real-Time Active Devices Timer**: A live counter showing exactly how long the currently active devices have been running in the current session.
+* **Live Power Draw Gauge**: A visual speedometer-style gauge showing the real-time electricity draw (in Watts) of the room based on currently active devices.
+* **Daily Energy Consumption Chart**: A bar chart mapping the total kWh used per day for the last 7 days.
+* **Cost Tracker**: A dynamic widget calculating the live cost of the current session based on the live tariff rate (Rs. 3.75 - 5.75).
+* **Device Efficiency Breakdown**: A pie chart showing which devices (Left vs Right vs HVAC) consume the most power.
+
+## 3. Data Processing Logic
+The backend must track "State Changes". Instead of saving a database row every 300ms (which would crash the database), the backend will wait for the AI to change states (e.g., from "OFF" to "LEFT"). 
+1. When state becomes "LEFT", save `start_time`.
+2. When state becomes "OFF" again, calculate `end_time - start_time`, multiply by the device's wattage, and write ONE summary row to the `DeviceUsage` table.

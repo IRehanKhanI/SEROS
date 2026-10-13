@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+
+<html lang="en"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/><meta content="mobile_tab" name="shell-type"/><link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:ital,opsz,wght@0,6..12,400..800;1,6..12,400..800&amp;display=swap" rel="stylesheet"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { "colors": { "tertiary-fixed": "#ffddb4", "on-secondary-fixed": "#001e2c", "on-primary-fixed-variant": "#005228", "surface-container-high": "#d9edde", "danger": "#B93832", "surface-container": "#dff3e4", "surface-yellow": "#FFF4CC", "on-error": "#ffffff", "on-secondary-fixed-variant": "#004c69", "primary-pressed": "#1F693B", "secondary-fixed-dim": "#90cef3", "tertiary-fixed-dim": "#ffb955", "primary-fixed-dim": "#80d997", "on-secondary": "#ffffff", "primary-fixed": "#9bf6b1", "outline": "#6f7a6f", "surface-dim": "#cbdfd0", "on-background": "#0e1f16", "inverse-primary": "#80d997", "background": "#eafeef", "text-secondary": "#68766B", "surface-peach": "#FFF0E4", "surface-container-highest": "#d3e7d9", "secondary-fixed": "#c4e7ff", "danger-surface": "#FCE8E6", "secondary-container": "#9cd9ff", "primary-container": "#27834a", "on-tertiary-fixed": "#291800", "on-tertiary-container": "#fffaf8", "surface-green": "#EAF5DD", "error-container": "#ffdad6", "accent-lime": "#DFF3A3", "error": "#ba1a1a", "info-surface": "#E5F2F8", "on-error-container": "#93000a", "surface-container-lowest": "#ffffff", "on-tertiary": "#ffffff", "surface-variant": "#d3e7d9", "canvas": "#F7F4E8", "primary": "#006934", "on-surface-variant": "#3f4940", "border-subtle": "#E3E5D8", "surface": "#FFFFFF", "on-tertiary-fixed-variant": "#633f00", "inverse-surface": "#23342a", "on-secondary-container": "#176081", "tertiary": "#7e5200", "surface-bright": "#eafeef", "outline-variant": "#becabd", "on-primary-container": "#eeffed", "tertiary-container": "#9f6800", "on-surface": "#0e1f16", "on-primary": "#ffffff", "on-primary-fixed": "#00210c", "surface-tint": "#016d37", "inverse-on-surface": "#e2f6e7", "secondary": "#1e6585", "surface-container-low": "#e4f9ea" }, "borderRadius": { "DEFAULT": "1rem", "lg": "2rem", "xl": "3rem", "full": "9999px" }, "spacing": { "space-sm": "0.75rem", "margin-desktop": "2rem", "space-lg": "1.5rem", "space-xl": "2rem", "margin-tablet": "1.5rem", "margin": "1rem", "space-md": "1rem", "space-xs": "0.5rem", "gutter": "1rem", "space-2xl": "3rem", "gutter-desktop": "1.5rem" }, "fontFamily": { "metric-display": ["Nunito Sans"], "headline-md": ["Nunito Sans"], "body-md": ["Nunito Sans"], "body-sm": ["Nunito Sans"], "headline-lg": ["Nunito Sans"], "label-lg": ["Nunito Sans"], "headline-xl": ["Nunito Sans"], "label-sm": ["Nunito Sans"], "headline-lg-mobile": ["Nunito Sans"], "headline-xl-mobile": ["Nunito Sans"], "headline-sm": ["Nunito Sans"], "body-lg": ["Nunito Sans"], "label-md": ["Nunito Sans"] }, "fontSize": { "metric-display": ["36px", { "lineHeight": "40px", "fontWeight": "800" }], "headline-md": ["22px", { "lineHeight": "28px", "fontWeight": "700" }], "body-md": ["16px", { "lineHeight": "24px", "fontWeight": "400" }], "body-sm": ["14px", { "lineHeight": "20px", "fontWeight": "400" }], "headline-lg": ["28px", { "lineHeight": "36px", "fontWeight": "700" }], "label-lg": ["16px", { "lineHeight": "20px", "fontWeight": "700" }], "headline-xl": ["36px", { "lineHeight": "44px", "letterSpacing": "-0.02em", "fontWeight": "800" }], "label-sm": ["13px", { "lineHeight": "16px", "fontWeight": "600" }], "headline-lg-mobile": ["24px", { "lineHeight": "32px", "fontWeight": "700" }], "headline-xl-mobile": ["28px", { "lineHeight": "36px", "letterSpacing": "-0.01em", "fontWeight": "800" }], "headline-sm": ["18px", { "lineHeight": "24px", "fontWeight": "700" }], "body-lg": ["18px", { "lineHeight": "28px", "fontWeight": "400" }], "label-md": ["14px", { "lineHeight": "18px", "fontWeight": "700" }] } } } };</script><style>@layer base{html,body{width:100vw;margin:0;padding:0;}body{overscroll-behavior:none;background-color:#F7F4E8;}.pb-safe{padding-bottom:env(safe-area-inset-bottom,0px);}.pt-safe{padding-top:env(safe-area-inset-top,0px);}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head><body class="bg-canvas text-on-surface font-body-md text-body-md flex flex-col min-h-screen"><header class="fixed top-0 inset-x-0 z-50 bg-canvas/90 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)] pt-safe"><div class="h-20 px-margin flex items-center justify-between gap-space-sm"><div class="flex flex-col"><div class="flex items-center gap-space-xs"><span class="font-headline-sm text-headline-sm text-on-surface tracking-tight font-extrabold">S.E.R.O.S.</span><div class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-surface-green text-primary"><span class="w-2.5 h-2.5 rounded-full bg-primary-container animate-pulse"></span><span class="font-label-sm text-label-sm font-bold text-on-surface tracking-wide">Connected &amp; Active</span></div></div><span class="font-label-sm text-label-sm text-text-secondary mt-0.5">Devices</span></div><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center shrink-0"><span class="material-symbols-outlined text-on-primary text-[18px]">person</span></div></div></header><main class="flex-1 flex flex-col relative w-full px-margin pt-20 pb-28 bg-canvas"><div class="flex flex-col w-full space-y-space-lg">
+<!-- Instant Feedback Toast / Backend Confirmation Banner -->
+<div class="w-full bg-surface-green text-primary p-space-sm rounded-lg shadow-sm flex items-center justify-between transition-all duration-300" id="confirmation-banner">
+<div class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-primary text-[20px]" style="font-variation-settings: 'FILL' 1;">verified</span>
+<span class="font-label-md text-label-md text-primary font-bold">Device responded in 0.2s • Backend Verified</span>
+</div>
+<button class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-primary/10 text-primary transition-colors" onclick="document.getElementById('confirmation-banner').classList.add('hidden')">
+<span class="material-symbols-outlined text-[18px]">close</span>
+</button>
+</div>
+<!-- Intro & Scope Overview -->
+<div class="flex flex-col gap-1">
+<div class="flex items-center justify-between">
+<span class="font-headline-lg-mobile text-headline-lg-mobile font-bold text-on-surface">Device Controls</span>
+<span class="px-2.5 py-1 rounded-full bg-surface-yellow text-on-surface font-label-sm text-label-sm font-bold flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px] text-tertiary">bolt</span>
+        Eco-Saver On
+      </span>
+</div>
+<span class="font-body-sm text-body-sm text-text-secondary">Tap any device to toggle. S.E.R.O.S. adjusts power safely in real-time.</span>
+</div>
+<!-- Big Filter Pills -->
+<div class="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
+<button class="filter-pill shrink-0 min-h-[48px] px-space-md py-2.5 rounded-full font-label-md text-label-md bg-primary text-on-primary font-bold shadow-sm flex items-center gap-1.5 transition-transform active:scale-95" data-filter="all">
+<span class="material-symbols-outlined text-[18px]">apps</span>
+      All Devices (8)
+    </button>
+<button class="filter-pill shrink-0 min-h-[48px] px-space-md py-2.5 rounded-full font-label-md text-label-md bg-surface text-on-surface font-bold shadow-sm hover:bg-surface-container-high transition-transform active:scale-95 flex items-center gap-1.5" data-filter="lights">
+<span class="material-symbols-outlined text-[18px]">lightbulb</span>
+      Lights (4)
+    </button>
+<button class="filter-pill shrink-0 min-h-[48px] px-space-md py-2.5 rounded-full font-label-md text-label-md bg-surface text-on-surface font-bold shadow-sm hover:bg-surface-container-high transition-transform active:scale-95 flex items-center gap-1.5" data-filter="fans">
+<span class="material-symbols-outlined text-[18px]">mode_fan</span>
+      Fans (2)
+    </button>
+<button class="filter-pill shrink-0 min-h-[48px] px-space-md py-2.5 rounded-full font-label-md text-label-md bg-surface text-on-surface font-bold shadow-sm hover:bg-surface-container-high transition-transform active:scale-95 flex items-center gap-1.5" data-filter="ac">
+<span class="material-symbols-outlined text-[18px]">ac_unit</span>
+      AC &amp; HVAC (2)
+    </button>
+</div>
+<!-- Device Cards List -->
+<div class="flex flex-col space-y-space-md">
+<!-- Card 1: Classroom 101 - Ceiling Fan 1 -->
+<div class="bg-surface rounded-lg p-space-lg shadow-sm flex flex-col space-y-space-md">
+<div class="flex items-start justify-between gap-space-sm">
+<div class="flex items-center gap-space-sm">
+<div class="w-12 h-12 rounded-full bg-surface-green flex items-center justify-center text-primary shrink-0">
+<span class="material-symbols-outlined text-[26px]">mode_fan</span>
+</div>
+<div class="flex flex-col">
+<span class="font-headline-sm text-headline-sm text-on-surface">Classroom 101 - Ceiling Fan 1</span>
+<span class="font-body-sm text-body-sm text-text-secondary">Smart Induction • 38W Live</span>
+</div>
+</div>
+<div class="flex items-center gap-1.5 px-3 py-1 rounded-full bg-surface-green text-primary shrink-0">
+<span class="w-2.5 h-2.5 rounded-full bg-primary-container"></span>
+<span class="font-label-sm text-label-sm font-bold">Running (Auto)</span>
+</div>
+</div>
+<!-- Speed Control Segment -->
+<div class="flex flex-col space-y-1.5">
+<span class="font-label-sm text-label-sm text-text-secondary uppercase tracking-wider font-extrabold">Fan Speed Level</span>
+<div class="grid grid-cols-4 gap-2 bg-surface-container-low p-1.5 rounded-lg">
+<button class="speed-btn min-h-[48px] rounded-lg font-label-md text-label-md font-bold text-on-surface-variant hover:bg-surface transition-all flex items-center justify-center">
+            Off
+          </button>
+<button class="speed-btn min-h-[48px] rounded-lg font-label-md text-label-md font-bold text-on-surface-variant hover:bg-surface transition-all flex items-center justify-center">
+            1
+          </button>
+<button class="speed-btn min-h-[48px] rounded-lg font-label-md text-label-md font-extrabold bg-primary text-on-primary shadow-sm transition-all flex items-center justify-center">
+            2 • Active
+          </button>
+<button class="speed-btn min-h-[48px] rounded-lg font-label-md text-label-md font-bold text-on-surface-variant hover:bg-surface transition-all flex items-center justify-center">
+            3
+          </button>
+</div>
+</div>
+<!-- Big Action Switch (Peach/Coral for Turning OFF) -->
+<button class="w-full min-h-[52px] px-space-md py-3 rounded-full bg-surface-peach text-tertiary-container hover:bg-danger-surface transition-all flex items-center justify-center gap-2 active:scale-[0.99] font-label-lg text-label-lg font-extrabold shadow-sm">
+<span class="material-symbols-outlined text-[22px]">power_settings_new</span>
+<span>TURN OFF FAN</span>
+</button>
+</div>
+<!-- Card 2: Classroom 101 - Tube Lights -->
+<div class="bg-surface rounded-lg p-space-lg shadow-sm flex flex-col space-y-space-md">
+<div class="flex items-start justify-between gap-space-sm">
+<div class="flex items-center gap-space-sm">
+<div class="w-12 h-12 rounded-full bg-surface-yellow flex items-center justify-center text-tertiary shrink-0">
+<span class="material-symbols-outlined text-[26px]">lightbulb</span>
+</div>
+<div class="flex flex-col">
+<span class="font-headline-sm text-headline-sm text-on-surface">Classroom 101 - Tube Lights</span>
+<span class="font-body-sm text-body-sm text-text-secondary">4 LED Fixtures • 44W Live</span>
+</div>
+</div>
+<div class="flex items-center gap-1.5 px-3 py-1 rounded-full bg-surface-green text-primary shrink-0">
+<span class="w-2.5 h-2.5 rounded-full bg-primary-container"></span>
+<span class="font-label-sm text-label-sm font-bold">ON (Zone 1 Active)</span>
+</div>
+</div>
+<div class="flex items-center justify-between p-space-sm rounded-lg bg-surface-container-low">
+<div class="flex items-center gap-2 text-text-secondary font-body-sm text-body-sm">
+<span class="material-symbols-outlined text-[18px]">wb_sunny</span>
+<span>Daylight Compensation at 60%</span>
+</div>
+<span class="font-label-md text-label-md font-bold text-primary">Automated</span>
+</div>
+<!-- Big Action Switch -->
+<button class="w-full min-h-[52px] px-space-md py-3 rounded-full bg-surface-peach text-tertiary-container hover:bg-danger-surface transition-all flex items-center justify-center gap-2 active:scale-[0.99] font-label-lg text-label-lg font-extrabold shadow-sm">
+<span class="material-symbols-outlined text-[22px]">power_settings_new</span>
+<span>TURN OFF LIGHTS</span>
+</button>
+</div>
+<!-- Card 3: Library - Smart AC Unit -->
+<div class="bg-surface rounded-lg p-space-lg shadow-sm flex flex-col space-y-space-md">
+<div class="flex items-start justify-between gap-space-sm">
+<div class="flex items-center gap-space-sm">
+<div class="w-12 h-12 rounded-full bg-surface-container-high flex items-center justify-center text-on-surface-variant shrink-0">
+<span class="material-symbols-outlined text-[26px]">ac_unit</span>
+</div>
+<div class="flex flex-col">
+<span class="font-headline-sm text-headline-sm text-on-surface">Library - Smart AC Unit</span>
+<span class="font-body-sm text-body-sm text-text-secondary">Dual Inverter • 0W Consumed</span>
+</div>
+</div>
+<div class="flex items-center gap-1.5 px-3 py-1 rounded-full bg-surface-container-high text-on-surface-variant shrink-0">
+<span class="w-2.5 h-2.5 rounded-full bg-outline"></span>
+<span class="font-label-sm text-label-sm font-bold">Standby (Room Empty)</span>
+</div>
+</div>
+<!-- Visual Graphic Preview / Thermostat status -->
+<div class="flex items-center justify-between bg-surface-container-low p-space-sm rounded-lg">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-secondary text-[22px]">thermostat</span>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-text-secondary">Ambient Temperature</span>
+<span class="font-headline-sm text-headline-sm font-bold text-on-surface">24.5°C</span>
+</div>
+</div>
+<span class="px-2.5 py-1 rounded-full bg-info-surface text-secondary font-label-sm text-label-sm font-bold">Target 23°C</span>
+</div>
+<!-- Big Action Switch (Forest Green for Turning ON) -->
+<button class="w-full min-h-[52px] px-space-md py-3 rounded-full bg-primary text-on-primary hover:bg-primary-pressed transition-all flex items-center justify-center gap-2 active:scale-[0.99] font-label-lg text-label-lg font-extrabold shadow-sm">
+<span class="material-symbols-outlined text-[22px]" style="font-variation-settings: 'FILL' 1;">power_settings_new</span>
+<span>TURN ON AC</span>
+</button>
+</div>
+</div>
+<!-- Automation Rules Section -->
+<div class="flex flex-col space-y-space-md pt-space-xs">
+<div class="flex items-center justify-between">
+<div class="flex flex-col">
+<span class="font-headline-sm text-headline-sm font-bold text-on-surface">Automatic Rules</span>
+<span class="font-body-sm text-body-sm text-text-secondary">Intelligent actions powered by presence sensors</span>
+</div>
+<div class="w-8 h-8 rounded-full bg-surface-container-high flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[20px]">smart_toy</span>
+</div>
+</div>
+<!-- Rule 1 Card -->
+<div class="bg-surface rounded-lg p-space-lg shadow-sm flex flex-col space-y-space-sm">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-1.5 px-3 py-1 rounded-full bg-surface-green text-primary">
+<span class="material-symbols-outlined text-[16px]" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+<span class="font-label-sm text-label-sm font-bold">Active Rule</span>
+</div>
+<button class="flex items-center gap-1 px-3 py-1.5 rounded-full bg-surface-container-high hover:bg-surface-yellow text-on-surface font-label-sm text-label-sm font-bold transition-colors">
+<span class="material-symbols-outlined text-[16px]">pause</span>
+          Pause
+        </button>
+</div>
+<!-- Logic Stack -->
+<div class="flex flex-col space-y-2 mt-1">
+<div class="flex items-start gap-2.5 p-space-xs bg-surface-container-low rounded-lg">
+<span class="px-2 py-0.5 rounded-md bg-secondary-fixed text-on-secondary-fixed font-label-sm text-label-sm font-extrabold uppercase shrink-0">WHEN</span>
+<span class="font-body-md text-body-md text-on-surface font-semibold">Room is empty for 10 minutes</span>
+</div>
+<div class="flex items-start gap-2.5 p-space-xs bg-surface-green rounded-lg">
+<span class="px-2 py-0.5 rounded-md bg-primary-fixed text-on-primary-fixed font-label-sm text-label-sm font-extrabold uppercase shrink-0">THEN</span>
+<span class="font-body-md text-body-md text-primary font-semibold">Turn off all lights and fans automatically</span>
+</div>
+</div>
+<div class="pt-1 flex items-center justify-between text-text-secondary font-body-sm text-body-sm">
+<span class="flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]">schedule</span>
+          Triggered 3 times today
+        </span>
+<span class="text-primary font-bold">Saved ~0.8 kWh</span>
+</div>
+</div>
+<!-- Rule 2 Card -->
+<div class="bg-surface rounded-lg p-space-lg shadow-sm flex flex-col space-y-space-sm">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-1.5 px-3 py-1 rounded-full bg-surface-green text-primary">
+<span class="material-symbols-outlined text-[16px]" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+<span class="font-label-sm text-label-sm font-bold">Active Rule</span>
+</div>
+<button class="flex items-center gap-1 px-3 py-1.5 rounded-full bg-surface-container-high hover:bg-surface-yellow text-on-surface font-label-sm text-label-sm font-bold transition-colors">
+<span class="material-symbols-outlined text-[16px]">pause</span>
+          Pause
+        </button>
+</div>
+<!-- Logic Stack -->
+<div class="flex flex-col space-y-2 mt-1">
+<div class="flex items-start gap-2.5 p-space-xs bg-surface-container-low rounded-lg">
+<span class="px-2 py-0.5 rounded-md bg-secondary-fixed text-on-secondary-fixed font-label-sm text-label-sm font-extrabold uppercase shrink-0">WHEN</span>
+<span class="font-body-md text-body-md text-on-surface font-semibold">Temperature exceeds 30°C and 1+ person inside</span>
+</div>
+<div class="flex items-start gap-2.5 p-space-xs bg-surface-green rounded-lg">
+<span class="px-2 py-0.5 rounded-md bg-primary-fixed text-on-primary-fixed font-label-sm text-label-sm font-extrabold uppercase shrink-0">THEN</span>
+<span class="font-body-md text-body-md text-primary font-semibold">Set fans to Speed 3</span>
+</div>
+</div>
+<div class="pt-1 flex items-center justify-between text-text-secondary font-body-sm text-body-sm">
+<span class="flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]">thermostat</span>
+          Climate comfort automation
+        </span>
+<span class="font-label-sm text-label-sm font-bold text-on-surface">Auto-Managed</span>
+</div>
+</div>
+<!-- Prominent + Create New Rule Button -->
+<button class="w-full min-h-[56px] px-space-lg py-3.5 rounded-full bg-surface hover:bg-surface-green text-primary font-label-lg text-label-lg font-extrabold shadow-sm flex items-center justify-center gap-2 active:scale-95 transition-all" id="open-wizard-btn">
+<span class="material-symbols-outlined text-[24px]">add_circle</span>
+<span>Create New Rule (Guided Wizard)</span>
+</button>
+</div>
+<!-- Wizard Modal Backdrop (Hidden by default) -->
+<div class="fixed inset-0 z-50 bg-inverse-surface/40 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-margin hidden" id="rule-wizard-modal">
+<div class="bg-surface w-full max-w-lg rounded-t-xl sm:rounded-xl p-space-lg shadow-xl flex flex-col space-y-space-md max-h-[751px] overflow-y-auto">
+<!-- Wizard Header -->
+<div class="flex items-center justify-between pb-space-xs">
+<div class="flex items-center gap-2">
+<div class="w-9 h-9 rounded-full bg-surface-green text-primary flex items-center justify-center">
+<span class="material-symbols-outlined text-[22px]">auto_fix_high</span>
+</div>
+<div>
+<span class="font-headline-sm text-headline-sm font-bold text-on-surface block">Rule Creator</span>
+<span class="font-label-sm text-label-sm text-text-secondary">Step 1 of 3: Trigger Condition</span>
+</div>
+</div>
+<button class="w-9 h-9 flex items-center justify-center rounded-full hover:bg-surface-container-high text-on-surface" id="close-wizard-btn">
+<span class="material-symbols-outlined">close</span>
+</button>
+</div>
+<!-- Step Indicator -->
+<div class="grid grid-cols-3 gap-2">
+<div class="h-1.5 rounded-full bg-primary"></div>
+<div class="h-1.5 rounded-full bg-surface-container-high"></div>
+<div class="h-1.5 rounded-full bg-surface-container-high"></div>
+</div>
+<!-- Form Segment -->
+<div class="flex flex-col space-y-space-md">
+<div class="flex flex-col space-y-1">
+<label class="font-label-md text-label-md text-on-surface font-bold">1. Choose a Trigger Trigger (WHEN):</label>
+<div class="grid grid-cols-1 gap-2 pt-1">
+<div class="p-3 rounded-lg bg-surface-green text-primary flex items-center justify-between cursor-pointer font-label-md text-label-md">
+<span class="flex items-center gap-2 font-bold">
+<span class="material-symbols-outlined text-[20px]">person_off</span>
+                Room Vacant for X Minutes
+              </span>
+<span class="material-symbols-outlined text-[20px]">check_circle</span>
+</div>
+<div class="p-3 rounded-lg bg-surface-container-low text-on-surface flex items-center justify-between cursor-pointer hover:bg-surface-container-high font-label-md text-label-md">
+<span class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[20px]">thermostat</span>
+                Temperature Sensor Level
+              </span>
+<span class="material-symbols-outlined text-[20px] text-outline">chevron_right</span>
+</div>
+<div class="p-3 rounded-lg bg-surface-container-low text-on-surface flex items-center justify-between cursor-pointer hover:bg-surface-container-high font-label-md text-label-md">
+<span class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[20px]">schedule</span>
+                Daily Bell / Time Schedule
+              </span>
+<span class="material-symbols-outlined text-[20px] text-outline">chevron_right</span>
+</div>
+</div>
+</div>
+<div class="flex flex-col space-y-1">
+<label class="font-label-md text-label-md text-on-surface font-bold">Vacant Time Window</label>
+<div class="flex items-center gap-3">
+<button class="min-h-[48px] px-4 py-2 rounded-lg bg-surface-container-high font-label-md text-label-md font-bold text-on-surface">5 mins</button>
+<button class="min-h-[48px] px-4 py-2 rounded-lg bg-primary text-on-primary font-label-md text-label-md font-bold shadow-sm">10 mins</button>
+<button class="min-h-[48px] px-4 py-2 rounded-lg bg-surface-container-high font-label-md text-label-md font-bold text-on-surface">20 mins</button>
+</div>
+</div>
+</div>
+<!-- Wizard Action Footer -->
+<div class="pt-space-xs flex items-center gap-space-sm">
+<button class="flex-1 min-h-[52px] rounded-full bg-surface-container-high font-label-md text-label-md font-bold text-on-surface hover:bg-surface-container transition-colors" id="cancel-wizard-btn">
+          Cancel
+        </button>
+<button class="flex-1 min-h-[52px] rounded-full bg-primary font-label-md text-label-md font-bold text-on-primary shadow-sm hover:bg-primary-pressed transition-colors flex items-center justify-center gap-1" id="next-wizard-btn">
+<span>Next: Action</span>
+<span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+<script>
+  // Simple interactive micro-interactions for the Device Controls & Wizard
+  document.addEventListener('DOMContentLoaded', () => {
+    // Filter pills toggling
+    const filterPills = document.querySelectorAll('.filter-pill');
+    filterPills.forEach(pill => {
+      pill.addEventListener('click', () => {
+        filterPills.forEach(p => {
+          p.classList.remove('bg-primary', 'text-on-primary');
+          p.classList.add('bg-surface', 'text-on-surface');
+        });
+        pill.classList.remove('bg-surface', 'text-on-surface');
+        pill.classList.add('bg-primary', 'text-on-primary');
+      });
+    });
+
+    // Speed selector micro-interaction
+    const speedButtons = document.querySelectorAll('.speed-btn');
+    speedButtons.forEach(btn => {
+      btn.addEventListener('click', function() {
+        const parent = this.parentElement;
+        parent.querySelectorAll('.speed-btn').forEach(b => {
+          b.classList.remove('bg-primary', 'text-on-primary', 'font-extrabold', 'shadow-sm');
+          b.classList.add('text-on-surface-variant');
+        });
+        this.classList.remove('text-on-surface-variant');
+        this.classList.add('bg-primary', 'text-on-primary', 'font-extrabold', 'shadow-sm');
+      });
+    });
+
+    // Wizard toggle
+    const wizardModal = document.getElementById('rule-wizard-modal');
+    const openBtn = document.getElementById('open-wizard-btn');
+    const closeBtn = document.getElementById('close-wizard-btn');
+    const cancelBtn = document.getElementById('cancel-wizard-btn');
+    const nextBtn = document.getElementById('next-wizard-btn');
+
+    const openWizard = () => wizardModal.classList.remove('hidden');
+    const closeWizard = () => wizardModal.classList.add('hidden');
+
+    if (openBtn) openBtn.addEventListener('click', openWizard);
+    if (closeBtn) closeBtn.addEventListener('click', closeWizard);
+    if (cancelBtn) cancelBtn.addEventListener('click', closeWizard);
+    if (nextBtn) nextBtn.addEventListener('click', () => {
+      closeWizard();
+      const banner = document.getElementById('confirmation-banner');
+      if (banner) {
+        banner.classList.remove('hidden');
+      }
+    });
+  });
+</script></main><nav class="fixed bottom-0 inset-x-0 z-50 pb-safe bg-surface/90 backdrop-blur-xl shadow-[0_-2px_12px_rgba(38,55,45,0.06)]" data-active-classes="bg-surface-green text-primary font-bold"><div class="flex justify-around items-center h-20 px-space-xs gap-1"><a class="flex flex-col items-center justify-center min-h-[52px] min-w-[56px] py-1.5 px-2 rounded-lg text-on-surface-variant hover:text-on-surface transition-colors" data-path="home" href="#"><span class="material-symbols-outlined text-[26px]">home</span><span class="font-label-sm text-label-sm mt-0.5">Home</span></a><a class="flex flex-col items-center justify-center min-h-[52px] min-w-[56px] py-1.5 px-2 rounded-lg text-on-surface-variant hover:text-on-surface transition-colors" data-path="rooms" href="#"><span class="material-symbols-outlined text-[26px]">meeting_room</span><span class="font-label-sm text-label-sm mt-0.5">Rooms</span></a><a class="flex flex-col items-center justify-center min-h-[52px] min-w-[56px] py-1.5 px-2 rounded-lg text-on-surface-variant hover:text-on-surface transition-colors" data-path="energy" href="#"><span class="material-symbols-outlined text-[26px]">bolt</span><span class="font-label-sm text-label-sm mt-0.5">Energy</span></a><a aria-current="page" class="flex flex-col items-center justify-center min-h-[52px] min-w-[56px] py-1.5 px-2 rounded-lg transition-colors bg-surface-green text-primary font-bold" data-path="devices" href="#"><span class="material-symbols-outlined text-[26px]">power_settings_new</span><span class="font-label-sm text-label-sm mt-0.5">Devices</span></a><a class="flex flex-col items-center justify-center min-h-[52px] min-w-[56px] py-1.5 px-2 rounded-lg text-on-surface-variant hover:text-on-surface transition-colors" data-path="more" href="#"><span class="material-symbols-outlined text-[26px]">grid_view</span><span class="font-label-sm text-label-sm mt-0.5">More</span></a></div></nav></body></html>

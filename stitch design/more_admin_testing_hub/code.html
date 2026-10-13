@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+
+<html lang="en"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/><meta content="mobile_tab" name="shell-type"/><link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:ital,opsz,wght@0,6..12,400..800;1,6..12,400..800&amp;display=swap" rel="stylesheet"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" rel="stylesheet"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { "colors": { "tertiary-fixed": "#ffddb4", "on-secondary-fixed": "#001e2c", "on-primary-fixed-variant": "#005228", "surface-container-high": "#d9edde", "danger": "#B93832", "surface-container": "#dff3e4", "surface-yellow": "#FFF4CC", "on-error": "#ffffff", "on-secondary-fixed-variant": "#004c69", "primary-pressed": "#1F693B", "secondary-fixed-dim": "#90cef3", "tertiary-fixed-dim": "#ffb955", "primary-fixed-dim": "#80d997", "on-secondary": "#ffffff", "primary-fixed": "#9bf6b1", "outline": "#6f7a6f", "surface-dim": "#cbdfd0", "on-background": "#0e1f16", "inverse-primary": "#80d997", "background": "#eafeef", "text-secondary": "#68766B", "surface-peach": "#FFF0E4", "surface-container-highest": "#d3e7d9", "secondary-fixed": "#c4e7ff", "danger-surface": "#FCE8E6", "secondary-container": "#9cd9ff", "primary-container": "#27834a", "on-tertiary-fixed": "#291800", "on-tertiary-container": "#fffaf8", "surface-green": "#EAF5DD", "error-container": "#ffdad6", "accent-lime": "#DFF3A3", "error": "#ba1a1a", "info-surface": "#E5F2F8", "on-error-container": "#93000a", "surface-container-lowest": "#ffffff", "on-tertiary": "#ffffff", "surface-variant": "#d3e7d9", "canvas": "#F7F4E8", "primary": "#006934", "on-surface-variant": "#3f4940", "border-subtle": "#E3E5D8", "surface": "#FFFFFF", "on-tertiary-fixed-variant": "#633f00", "inverse-surface": "#23342a", "on-secondary-container": "#176081", "tertiary": "#7e5200", "surface-bright": "#eafeef", "outline-variant": "#becabd", "on-primary-container": "#eeffed", "tertiary-container": "#9f6800", "on-surface": "#0e1f16", "on-primary": "#ffffff", "on-primary-fixed": "#00210c", "surface-tint": "#016d37", "inverse-on-surface": "#e2f6e7", "secondary": "#1e6585", "surface-container-low": "#e4f9ea" }, "borderRadius": { "DEFAULT": "1rem", "lg": "2rem", "xl": "3rem", "full": "9999px" }, "spacing": { "space-sm": "0.75rem", "margin-desktop": "2rem", "space-lg": "1.5rem", "space-xl": "2rem", "margin-tablet": "1.5rem", "margin": "1rem", "space-md": "1rem", "space-xs": "0.5rem", "gutter": "1rem", "space-2xl": "3rem", "gutter-desktop": "1.5rem" }, "fontFamily": { "metric-display": ["Nunito Sans"], "headline-md": ["Nunito Sans"], "body-md": ["Nunito Sans"], "body-sm": ["Nunito Sans"], "headline-lg": ["Nunito Sans"], "label-lg": ["Nunito Sans"], "headline-xl": ["Nunito Sans"], "label-sm": ["Nunito Sans"], "headline-lg-mobile": ["Nunito Sans"], "headline-xl-mobile": ["Nunito Sans"], "headline-sm": ["Nunito Sans"], "body-lg": ["Nunito Sans"], "label-md": ["Nunito Sans"] }, "fontSize": { "metric-display": ["36px", { "lineHeight": "40px", "fontWeight": "800" }], "headline-md": ["22px", { "lineHeight": "28px", "fontWeight": "700" }], "body-md": ["16px", { "lineHeight": "24px", "fontWeight": "400" }], "body-sm": ["14px", { "lineHeight": "20px", "fontWeight": "400" }], "headline-lg": ["28px", { "lineHeight": "36px", "fontWeight": "700" }], "label-lg": ["16px", { "lineHeight": "20px", "fontWeight": "700" }], "headline-xl": ["36px", { "lineHeight": "44px", "letterSpacing": "-0.02em", "fontWeight": "800" }], "label-sm": ["13px", { "lineHeight": "16px", "fontWeight": "600" }], "headline-lg-mobile": ["24px", { "lineHeight": "32px", "fontWeight": "700" }], "headline-xl-mobile": ["28px", { "lineHeight": "36px", "letterSpacing": "-0.01em", "fontWeight": "800" }], "headline-sm": ["18px", { "lineHeight": "24px", "fontWeight": "700" }], "body-lg": ["18px", { "lineHeight": "28px", "fontWeight": "400" }], "label-md": ["14px", { "lineHeight": "18px", "fontWeight": "700" }] } } } };</script><style>@layer base{html,body{width:100vw;margin:0;padding:0;}body{overscroll-behavior:none;background-color:#F7F4E8;}.pb-safe{padding-bottom:env(safe-area-inset-bottom,0px);}.pt-safe{padding-top:env(safe-area-inset-top,0px);}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><style>body { min-height: max(884px, 100dvh); }</style></head><body class="bg-canvas text-on-surface font-body-md text-body-md flex flex-col min-h-screen"><header class="fixed top-0 inset-x-0 z-50 bg-canvas/90 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)] pt-safe"><div class="h-20 px-margin flex items-center justify-between gap-space-sm"><div class="flex flex-col"><div class="flex items-center gap-space-xs"><span class="font-headline-sm text-headline-sm text-on-surface tracking-tight font-extrabold">S.E.R.O.S.</span><div class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-surface-green text-primary"><span class="w-2.5 h-2.5 rounded-full bg-primary-container animate-pulse"></span><span class="font-label-sm text-label-sm font-bold text-on-surface tracking-wide">Connected &amp; Active</span></div></div><span class="font-label-sm text-label-sm text-text-secondary mt-0.5">More / Admin &amp; Testing Hub</span></div><div class="w-10 h-10 rounded-full bg-primary flex items-center justify-center shrink-0 shadow-sm"><span class="material-symbols-outlined text-on-primary text-[20px]">person</span></div></div></header><main class="flex-1 flex flex-col relative w-full px-margin pt-20 pb-28 bg-canvas"><div class="flex flex-col w-full gap-space-lg">
+<!-- Tester Mode Banner -->
+<div class="w-full bg-surface-yellow rounded-lg p-space-md shadow-sm flex items-center justify-between gap-space-sm">
+<div class="flex items-center gap-space-xs">
+<div class="w-10 h-10 rounded-full bg-tertiary-container text-on-tertiary-container flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-[22px]">verified_user</span>
+</div>
+<div class="flex flex-col">
+<span class="font-headline-sm text-headline-sm text-on-surface">Authorized Tester Mode</span>
+<span class="font-body-sm text-body-sm text-text-secondary">Diagnostic controls &amp; system override unlocked</span>
+</div>
+</div>
+<div class="px-2.5 py-1 rounded-full bg-surface text-primary shadow-xs shrink-0 flex items-center gap-1">
+<span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
+<span class="font-label-sm text-label-sm font-bold">Live v2.4</span>
+</div>
+</div>
+<!-- Top Hero / Assistant & Alerts Hub -->
+<div class="grid grid-cols-1 gap-space-md">
+<!-- AI Assistant (Gemma) Card -->
+<div class="bg-surface rounded-lg p-space-lg shadow-sm flex flex-col gap-space-md relative overflow-hidden">
+<div class="flex items-start justify-between gap-space-sm">
+<div class="flex items-center gap-space-sm">
+<div class="w-14 h-14 rounded-full bg-surface-peach flex items-center justify-center shrink-0 shadow-xs">
+<span class="material-symbols-outlined text-tertiary text-[32px]" style="font-variation-settings: 'FILL' 1;">smart_toy</span>
+</div>
+<div class="flex flex-col">
+<div class="flex items-center gap-1.5">
+<span class="font-headline-md text-headline-md text-on-surface">Gemma Assistant</span>
+<span class="px-2 py-0.5 rounded-full bg-surface-green text-primary font-label-sm text-label-sm">Active</span>
+</div>
+<span class="font-body-sm text-body-sm text-text-secondary">AI Energy &amp; Occupancy Co-pilot</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-outline text-[24px]">chat_bubble_outline</span>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant">
+        Ask instant questions about school power consumption, classroom headcount anomalies, or upcoming billing forecasts.
+      </p>
+<!-- Suggestion Pills -->
+<div class="flex flex-wrap gap-2">
+<button class="px-3 py-1.5 rounded-full bg-canvas text-on-surface font-label-sm text-label-sm hover:bg-surface-green transition-colors text-left flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px] text-primary">psychology</span>
+          "Who used power after 6 PM?"
+        </button>
+<button class="px-3 py-1.5 rounded-full bg-canvas text-on-surface font-label-sm text-label-sm hover:bg-surface-green transition-colors text-left flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px] text-primary">lightbulb</span>
+          "Suggest 3 savings tips"
+        </button>
+</div>
+<button class="w-full min-h-[50px] bg-primary hover:bg-primary-pressed text-on-primary rounded-full font-label-lg text-label-lg flex items-center justify-center gap-space-xs transition-colors shadow-sm active:scale-[0.99]" id="open-assistant-btn">
+<span class="material-symbols-outlined text-[20px]">forum</span>
+<span>Talk to Assistant</span>
+</button>
+</div>
+<!-- Active Alerts / Friendly Tip Card -->
+<div class="bg-surface rounded-lg p-space-md shadow-sm flex flex-col gap-space-sm">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<div class="w-8 h-8 rounded-full bg-surface-green flex items-center justify-center text-primary shrink-0">
+<span class="material-symbols-outlined text-[18px]">verified</span>
+</div>
+<span class="font-headline-sm text-headline-sm text-on-surface">System Alerts</span>
+</div>
+<span class="px-2.5 py-0.5 rounded-full bg-surface-container-high text-on-surface-variant font-label-sm text-label-sm">0 Critical</span>
+</div>
+<!-- Friendly Tip Bubble -->
+<div class="bg-surface-peach/70 rounded-DEFAULT p-space-sm flex items-start gap-space-sm">
+<span class="material-symbols-outlined text-tertiary text-[22px] shrink-0 mt-0.5">tips_and_updates</span>
+<div class="flex flex-col">
+<span class="font-label-md text-label-md text-on-surface">Helpful Tip from Yesterday</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant mt-0.5">AC unit remained running in empty Room 104 for 38 mins after students left. Automation rule drafted to auto-shutoff next time.</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Section: Grouped Admin & Testing Hub -->
+<div class="flex flex-col gap-space-xl">
+<!-- 1. MONITORING -->
+<div class="flex flex-col gap-space-sm">
+<div class="flex items-center justify-between px-1">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-[20px]">videocam</span>
+<span class="font-headline-sm text-headline-sm text-on-surface">Monitoring</span>
+</div>
+<span class="font-label-sm text-label-sm text-text-secondary">2 Tools</span>
+</div>
+<div class="flex flex-col gap-space-xs">
+<!-- Live Camera Feeds -->
+<a class="w-full bg-surface rounded-DEFAULT p-space-md shadow-sm hover:shadow-md transition-shadow flex items-center justify-between gap-space-sm group" href="#">
+<div class="flex items-center gap-space-md min-w-0">
+<div class="w-12 h-12 rounded-full bg-surface-green text-primary flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-[24px]">stream</span>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="font-headline-sm text-headline-sm text-on-surface truncate">Live Camera Feeds</span>
+<span class="font-body-sm text-body-sm text-text-secondary truncate">2 active camera streams · YOLO occupancy live</span>
+</div>
+</div>
+<div class="flex items-center gap-2 shrink-0">
+<span class="px-2.5 py-1 rounded-full bg-surface-green text-primary font-label-sm text-label-sm font-bold">2 Online</span>
+<span class="material-symbols-outlined text-outline group-hover:text-primary transition-colors text-[22px]">chevron_right</span>
+</div>
+</a>
+<!-- Zone Polygon Editor -->
+<a class="w-full bg-surface rounded-DEFAULT p-space-md shadow-sm hover:shadow-md transition-shadow flex items-center justify-between gap-space-sm group" href="#">
+<div class="flex items-center gap-space-md min-w-0">
+<div class="w-12 h-12 rounded-full bg-surface-peach text-tertiary flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-[24px]">crop_square</span>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="font-headline-sm text-headline-sm text-on-surface truncate">Zone Polygon Editor</span>
+<span class="font-body-sm text-body-sm text-text-secondary truncate">Calibrate detection areas &amp; sensor boundaries</span>
+</div>
+</div>
+<div class="flex items-center gap-2 shrink-0">
+<span class="material-symbols-outlined text-outline group-hover:text-primary transition-colors text-[22px]">chevron_right</span>
+</div>
+</a>
+</div>
+</div>
+<!-- 2. INSIGHTS & PREDICTIONS -->
+<div class="flex flex-col gap-space-sm">
+<div class="flex items-center justify-between px-1">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-[20px]">insights</span>
+<span class="font-headline-sm text-headline-sm text-on-surface">Insights &amp; Predictions</span>
+</div>
+<span class="font-label-sm text-label-sm text-text-secondary">3 Analytics Tools</span>
+</div>
+<div class="flex flex-col gap-space-xs">
+<!-- Detailed Analytics -->
+<a class="w-full bg-surface rounded-DEFAULT p-space-md shadow-sm hover:shadow-md transition-shadow flex items-center justify-between gap-space-sm group" href="#">
+<div class="flex items-center gap-space-md min-w-0">
+<div class="w-12 h-12 rounded-full bg-surface-green text-primary flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-[24px]">analytics</span>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="font-headline-sm text-headline-sm text-on-surface truncate">Detailed Analytics</span>
+<span class="font-body-sm text-body-sm text-text-secondary truncate">Daily and weekly campus electrical patterns</span>
+</div>
+</div>
+<div class="flex items-center gap-2 shrink-0">
+<span class="material-symbols-outlined text-outline group-hover:text-primary transition-colors text-[22px]">chevron_right</span>
+</div>
+</a>
+<!-- Tariff & Bill Forecaster -->
+<a class="w-full bg-surface rounded-DEFAULT p-space-md shadow-sm hover:shadow-md transition-shadow flex items-center justify-between gap-space-sm group" href="#">
+<div class="flex items-center gap-space-md min-w-0">
+<div class="w-12 h-12 rounded-full bg-surface-yellow text-tertiary flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-[24px]">receipt_long</span>
+</div>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-2">
+<span class="font-headline-sm text-headline-sm text-on-surface truncate">Tariff &amp; Bill Forecaster</span>
+<span class="px-2 py-0.5 rounded-full bg-secondary-fixed text-on-secondary-fixed font-label-sm text-label-sm">Gemini 3</span>
+</div>
+<span class="font-body-sm text-body-sm text-text-secondary truncate">Predict month-end utility bills with AI simulation</span>
+</div>
+</div>
+<div class="flex items-center gap-2 shrink-0">
+<span class="material-symbols-outlined text-outline group-hover:text-primary transition-colors text-[22px]">chevron_right</span>
+</div>
+</a>
+<!-- Hourly Usage Heatmap -->
+<a class="w-full bg-surface rounded-DEFAULT p-space-md shadow-sm hover:shadow-md transition-shadow flex items-center justify-between gap-space-sm group" href="#">
+<div class="flex items-center gap-space-md min-w-0">
+<div class="w-12 h-12 rounded-full bg-surface-peach text-tertiary flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-[24px]">grid_on</span>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="font-headline-sm text-headline-sm text-on-surface truncate">Hourly Usage Heatmap</span>
+<span class="font-body-sm text-body-sm text-text-secondary truncate">Visual matrix of peak load vs. idle wastage</span>
+</div>
+</div>
+<div class="flex items-center gap-2 shrink-0">
+<span class="material-symbols-outlined text-outline group-hover:text-primary transition-colors text-[22px]">chevron_right</span>
+</div>
+</a>
+</div>
+</div>
+<!-- 3. CONTROL & AUTOMATION -->
+<div class="flex flex-col gap-space-sm">
+<div class="flex items-center justify-between px-1">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-[20px]">tune</span>
+<span class="font-headline-sm text-headline-sm text-on-surface">Control &amp; Automation</span>
+</div>
+<span class="font-label-sm text-label-sm text-text-secondary">2 Modules</span>
+</div>
+<div class="flex flex-col gap-space-xs">
+<!-- Device Inventory & Relays -->
+<a class="w-full bg-surface rounded-DEFAULT p-space-md shadow-sm hover:shadow-md transition-shadow flex items-center justify-between gap-space-sm group" href="#">
+<div class="flex items-center gap-space-md min-w-0">
+<div class="w-12 h-12 rounded-full bg-surface-green text-primary flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-[24px]">toggle_on</span>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="font-headline-sm text-headline-sm text-on-surface truncate">Device Inventory &amp; Relays</span>
+<span class="font-body-sm text-body-sm text-text-secondary truncate">8 connected campus fixtures, smart outlets &amp; ACs</span>
+</div>
+</div>
+<div class="flex items-center gap-2 shrink-0">
+<span class="px-2.5 py-1 rounded-full bg-surface-green text-primary font-label-sm text-label-sm font-bold">8 Relays</span>
+<span class="material-symbols-outlined text-outline group-hover:text-primary transition-colors text-[22px]">chevron_right</span>
+</div>
+</a>
+<!-- Rule Builder Wizard -->
+<div class="w-full bg-surface rounded-DEFAULT p-space-md shadow-sm flex flex-col gap-space-sm">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-space-md min-w-0">
+<div class="w-12 h-12 rounded-full bg-surface-yellow text-on-surface flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-[24px]">auto_fix_high</span>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="font-headline-sm text-headline-sm text-on-surface truncate">Rule Builder Wizard</span>
+<span class="font-body-sm text-body-sm text-text-secondary truncate">Create automated energy logic</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-outline text-[22px]">chevron_right</span>
+</div>
+<!-- Micro Rule Pill Display -->
+<div class="bg-canvas rounded-DEFAULT p-space-sm flex items-center justify-between gap-2 mt-1">
+<div class="flex items-center gap-2 flex-wrap">
+<span class="px-2 py-0.5 rounded-full bg-primary text-on-primary font-label-sm text-label-sm">WHEN</span>
+<span class="font-body-sm text-body-sm text-on-surface">Occupancy = 0 for 15m</span>
+<span class="px-2 py-0.5 rounded-full bg-tertiary-container text-on-tertiary-container font-label-sm text-label-sm">THEN</span>
+<span class="font-body-sm text-body-sm text-on-surface">Turn off AC &amp; Lights</span>
+</div>
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-primary text-[18px]">check_circle</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- 4. ADMINISTRATION & SETUP -->
+<div class="flex flex-col gap-space-sm">
+<div class="flex items-center justify-between px-1">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-[20px]">admin_panel_settings</span>
+<span class="font-headline-sm text-headline-sm text-on-surface">Administration &amp; Setup</span>
+</div>
+<span class="font-label-sm text-label-sm text-text-secondary">2 Hubs</span>
+</div>
+<div class="flex flex-col gap-space-xs">
+<!-- Rooms & Zones Manager -->
+<a class="w-full bg-surface rounded-DEFAULT p-space-md shadow-sm hover:shadow-md transition-shadow flex items-center justify-between gap-space-sm group" href="#">
+<div class="flex items-center gap-space-md min-w-0">
+<div class="w-12 h-12 rounded-full bg-surface-peach text-tertiary flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-[24px]">meeting_room</span>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="font-headline-sm text-headline-sm text-on-surface truncate">Rooms &amp; Zones Manager</span>
+<span class="font-body-sm text-body-sm text-text-secondary truncate">Add classrooms, labs &amp; link camera detection</span>
+</div>
+</div>
+<div class="flex items-center gap-2 shrink-0">
+<span class="material-symbols-outlined text-outline group-hover:text-primary transition-colors text-[22px]">chevron_right</span>
+</div>
+</a>
+<!-- Users & Role Permissions -->
+<a class="w-full bg-surface rounded-DEFAULT p-space-md shadow-sm hover:shadow-md transition-shadow flex items-center justify-between gap-space-sm group" href="#">
+<div class="flex items-center gap-space-md min-w-0">
+<div class="w-12 h-12 rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-[24px]">manage_accounts</span>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="font-headline-sm text-headline-sm text-on-surface truncate">Users &amp; Role Permissions</span>
+<span class="font-body-sm text-body-sm text-text-secondary truncate">Admin, Staff &amp; Guest diagnostic permissions</span>
+</div>
+</div>
+<div class="flex items-center gap-2 shrink-0">
+<span class="material-symbols-outlined text-outline group-hover:text-primary transition-colors text-[22px]">chevron_right</span>
+</div>
+</a>
+</div>
+</div>
+<!-- 5. DIAGNOSTICS & SYSTEM HEALTH -->
+<div class="flex flex-col gap-space-sm">
+<div class="flex items-center justify-between px-1">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-[20px]">monitor_heart</span>
+<span class="font-headline-sm text-headline-sm text-on-surface">Diagnostics &amp; System Health</span>
+</div>
+<span class="px-2 py-0.5 rounded-full bg-surface-green text-primary font-label-sm text-label-sm">All Healthy</span>
+</div>
+<!-- Health Card -->
+<div class="w-full bg-surface rounded-DEFAULT p-space-md shadow-sm flex flex-col gap-space-md">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-space-sm">
+<div class="w-10 h-10 rounded-full bg-surface-green text-primary flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-[20px]">dns</span>
+</div>
+<div class="flex flex-col">
+<span class="font-headline-sm text-headline-sm text-on-surface">Connection Diagnostics</span>
+<span class="font-body-sm text-body-sm text-text-secondary">Latency 14ms · Edge Gateway Online</span>
+</div>
+</div>
+<button class="px-3 py-1.5 rounded-full bg-canvas hover:bg-surface-green text-on-surface font-label-sm text-label-sm transition-colors flex items-center gap-1" id="ping-test-btn">
+<span class="material-symbols-outlined text-[16px] text-primary">sync</span>
+            Ping
+          </button>
+</div>
+<!-- Metric Triplets -->
+<div class="grid grid-cols-3 gap-2">
+<!-- Backend API -->
+<div class="bg-canvas rounded-DEFAULT p-2.5 flex flex-col items-center text-center gap-1">
+<div class="flex items-center gap-1 text-primary">
+<span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
+<span class="font-label-sm text-label-sm font-bold">API</span>
+</div>
+<span class="font-headline-sm text-headline-sm text-on-surface">Connected</span>
+<span class="font-body-sm text-body-sm text-text-secondary">FastAPI 0.95</span>
+</div>
+<!-- Database -->
+<div class="bg-canvas rounded-DEFAULT p-2.5 flex flex-col items-center text-center gap-1">
+<div class="flex items-center gap-1 text-primary">
+<span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
+<span class="font-label-sm text-label-sm font-bold">Database</span>
+</div>
+<span class="font-headline-sm text-headline-sm text-on-surface">Linked</span>
+<span class="font-body-sm text-body-sm text-text-secondary">TimescaleDB</span>
+</div>
+<!-- Camera Stream -->
+<div class="bg-canvas rounded-DEFAULT p-2.5 flex flex-col items-center text-center gap-1">
+<div class="flex items-center gap-1 text-primary">
+<span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
+<span class="font-label-sm text-label-sm font-bold">Video</span>
+</div>
+<span class="font-headline-sm text-headline-sm text-on-surface">30 FPS</span>
+<span class="font-body-sm text-body-sm text-text-secondary">YOLOv8 n</span>
+</div>
+</div>
+</div>
+</div>
+<!-- 6. ACCESSIBILITY & HELP SHORTCUTS -->
+<div class="flex flex-col gap-space-sm">
+<div class="flex items-center justify-between px-1">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-[20px]">accessibility_new</span>
+<span class="font-headline-sm text-headline-sm text-on-surface">Accessibility &amp; About</span>
+</div>
+</div>
+<div class="flex flex-col gap-space-xs">
+<!-- Text Size & Voice Read-Aloud -->
+<div class="w-full bg-surface rounded-DEFAULT p-space-md shadow-sm flex items-center justify-between gap-space-sm">
+<div class="flex items-center gap-space-md min-w-0">
+<div class="w-12 h-12 rounded-full bg-surface-peach text-tertiary flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-[24px]">record_voice_over</span>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="font-headline-sm text-headline-sm text-on-surface truncate">Text Size &amp; Voice Settings</span>
+<span class="font-body-sm text-body-sm text-text-secondary truncate">High-contrast, large text, spoken alerts</span>
+</div>
+</div>
+<button class="px-3 py-1.5 rounded-full bg-surface-green text-primary font-label-sm text-label-sm flex items-center gap-1 shrink-0">
+<span>Configure</span>
+</button>
+</div>
+<!-- About S.E.R.O.S. -->
+<div class="w-full bg-surface rounded-DEFAULT p-space-md shadow-sm flex items-center justify-between gap-space-sm">
+<div class="flex items-center gap-space-md min-w-0">
+<div class="w-12 h-12 rounded-full bg-canvas text-on-surface-variant flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-[24px]">info</span>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="font-headline-sm text-headline-sm text-on-surface truncate">About S.E.R.O.S.</span>
+<span class="font-body-sm text-body-sm text-text-secondary truncate">Smart Energy &amp; Room Optimization System</span>
+</div>
+</div>
+<span class="font-label-sm text-label-sm text-text-secondary shrink-0 font-bold">v2.4 (Build 108)</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Micro Interaction Toast / Notification (Hidden by default) -->
+<div class="fixed bottom-24 left-4 right-4 bg-inverse-surface text-inverse-on-surface px-4 py-3 rounded-full shadow-lg flex items-center justify-between gap-2 opacity-0 pointer-events-none transition-all duration-300 z-50" id="status-toast">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary-fixed text-[20px]">check_circle</span>
+<span class="font-body-sm text-body-sm font-semibold" id="toast-message">Testing Diagnostic ping sent!</span>
+</div>
+<span class="font-label-sm text-label-sm text-accent-lime">14ms latency</span>
+</div>
+</div>
+<script>
+  // Simple Micro-interaction Script for Delight
+  const pingBtn = document.getElementById('ping-test-btn');
+  const assistantBtn = document.getElementById('open-assistant-btn');
+  const toast = document.getElementById('status-toast');
+  const toastMessage = document.getElementById('toast-message');
+
+  function showToast(msg) {
+    if (!toast) return;
+    toastMessage.textContent = msg;
+    toast.classList.remove('opacity-0', 'pointer-events-none');
+    toast.classList.add('opacity-100');
+    setTimeout(() => {
+      toast.classList.add('opacity-0', 'pointer-events-none');
+      toast.classList.remove('opacity-100');
+    }, 2800);
+  }
+
+  if (pingBtn) {
+    pingBtn.addEventListener('click', () => {
+      pingBtn.classList.add('scale-95');
+      setTimeout(() => pingBtn.classList.remove('scale-95'), 150);
+      showToast('All 3 diagnostic nodes responded OK in 14ms!');
+    });
+  }
+
+  if (assistantBtn) {
+    assistantBtn.addEventListener('click', () => {
+      showToast('Gemma AI Co-Pilot listening for queries...');
+    });
+  }
+</script></main><nav class="fixed bottom-0 inset-x-0 z-50 pb-safe bg-surface/90 backdrop-blur-xl shadow-[0_-2px_12px_rgba(38,55,45,0.06)]" data-active-classes="bg-surface-green text-primary font-bold"><div class="flex justify-around items-center h-20 px-space-xs gap-1"><a class="flex flex-col items-center justify-center min-h-[52px] min-w-[56px] py-1.5 px-2 rounded-lg text-on-surface-variant hover:text-on-surface transition-colors" data-path="s.e.r.o.s.-home-dashboard" href="#"><span class="material-symbols-outlined text-[26px]">home</span><span class="font-label-sm text-label-sm mt-0.5">Home</span></a><a class="flex flex-col items-center justify-center min-h-[52px] min-w-[56px] py-1.5 px-2 rounded-lg text-on-surface-variant hover:text-on-surface transition-colors" data-path="rooms" href="#"><span class="material-symbols-outlined text-[26px]">meeting_room</span><span class="font-label-sm text-label-sm mt-0.5">Rooms</span></a><a class="flex flex-col items-center justify-center min-h-[52px] min-w-[56px] py-1.5 px-2 rounded-lg text-on-surface-variant hover:text-on-surface transition-colors" data-path="energy" href="#"><span class="material-symbols-outlined text-[26px]">bolt</span><span class="font-label-sm text-label-sm mt-0.5">Energy</span></a><a class="flex flex-col items-center justify-center min-h-[52px] min-w-[56px] py-1.5 px-2 rounded-lg text-on-surface-variant hover:text-on-surface transition-colors" data-path="devices" href="#"><span class="material-symbols-outlined text-[26px]">power_settings_new</span><span class="font-label-sm text-label-sm mt-0.5">Devices</span></a><a aria-current="page" class="flex flex-col items-center justify-center min-h-[52px] min-w-[56px] py-1.5 px-2 rounded-lg transition-colors bg-surface-green text-primary font-bold" data-path="more-/-admin-&amp;-testing-hub" href="#"><span class="material-symbols-outlined text-[26px]">grid_view</span><span class="font-label-sm text-label-sm mt-0.5">More</span></a></div></nav></body></html>

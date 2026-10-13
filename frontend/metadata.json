@@ -1,0 +1,6 @@
+{
+  "name": "S.E.R.O.S. - Smart Energy & Resource Optimization System",
+  "description": "Playful, accessible, intuitive energy management and room occupancy automation for smart campuses and schools.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

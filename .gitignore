@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+*/node_modules/
+react_frontend/node_modules/
+frontend/node_modules/
+
+# Python & Django
+__pycache__/
+*/__pycache__/
+*.pyc
+*.sqlite3
+db.sqlite3
+newBackend/db.sqlite3
+
+# Large AI model artifacts
+*.pt
+*.pkl
+newBackend/yolov8n.pt
+newBackend/yolov8s.pt
+SEROSBackend/yolov8n.pt
+SEROSBackend/yolov8s.pt
+
+# Build and Expo artifacts
+dist/
+*/dist/
+.expo/
+*/.expo/
+
+# Environment files
+.env
+*.env
+/.env
+/SEROSBackend/.env
