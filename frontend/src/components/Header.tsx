@@ -68,7 +68,7 @@ export const Header: React.FC = () => {
               <Text style={styles.mainTitle}>S.E.R.O.S.</Text>
               <View style={styles.statusPill}>
                 <View style={styles.statusDot} />
-                <Text style={styles.statusText}>
+                <Text style={styles.statusText} numberOfLines={1}>
                   {settings.isDemoMode ? 'Demo Mode' : backendConnected ? 'Connected & Active' : 'Backend Offline'}
                 </Text>
               </View>
@@ -145,15 +145,19 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
   },
   mainTitleCol: {
+    flex: 1,
+    minWidth: 0,
+    marginRight: 8,
     justifyContent: 'center',
   },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
+    flexWrap: 'wrap',
   },
   mainTitle: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '800',
     color: colors.textPrimary,
     letterSpacing: -0.5,

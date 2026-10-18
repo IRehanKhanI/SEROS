@@ -38,6 +38,6 @@ USE_TZ = True
 STATIC_URL = "static/"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-SEROS_ESP32_URL = os.getenv("SEROS_ESP32_URL", "")
+SEROS_ESP32_URL = "http://192.168.137.52"
 SEROS_YOLO_MODEL = os.getenv("SEROS_YOLO_MODEL", str(BASE_DIR / "yolov8n.pt"))
 SEROS_EMPTY_ROOM_DELAY_SECONDS = int(os.getenv("SEROS_EMPTY_ROOM_DELAY_SECONDS", "600"))

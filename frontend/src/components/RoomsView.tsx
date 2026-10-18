@@ -46,7 +46,13 @@ export const RoomsView: React.FC = () => {
     backendUrl,
     isCameraEnabled,
     setCameraEnabled,
+    sensorData,
+    activeLayoutId,
+    layouts,
+    selectLayout,
+    saveLayoutZones,
   } = useApp();
+
 
   const selectedRoom: Room = rooms.find((r) => r.id === selectedRoomId) || rooms[0] || {
     id: '', name: 'Loading sections', subtitle: '', category: '', occupancyCount: 0,
@@ -68,12 +74,22 @@ export const RoomsView: React.FC = () => {
 
   useEffect(() => {
     setIsCameraActive(isCameraEnabled);
+    if (!isCameraEnabled) {
+      setProcessedFrame('');
+      setDetectedPersons([]);
+    }
   }, [isCameraEnabled]);
 
   const handleToggleCamera = () => {
     const next = !isCameraActive;
     setIsCameraActive(next);
+    if (!next) {
+      setProcessedFrame('');
+      setDetectedPersons([]);
+    }
     void setCameraEnabled(next);
+    setBackendVerifiedNotice(next ? 'Laptop room camera feed activated.' : 'Laptop room camera feed turned off.');
+    speakText(next ? 'Laptop camera turned on.' : 'Laptop camera turned off.');
   };
   // Kept in move mode for the read-only camera canvas; mobile zone editing is disabled.
   const [editorMode, setEditorMode] = useState<'move' | 'draw_rect' | 'draw_poly' | 'draw_curve' | 'split'>('move');
@@ -91,6 +107,11 @@ export const RoomsView: React.FC = () => {
 
   // 1. Sync live backend data when selectedRoom updates from AppContext state polling (every 3s)
   useEffect(() => {
+    if (!isCameraActive) {
+      setProcessedFrame('');
+      setDetectedPersons([]);
+      return;
+    }
     if (selectedRoom?.latestFrame) {
       setProcessedFrame(selectedRoom.latestFrame);
     }
@@ -110,11 +131,15 @@ export const RoomsView: React.FC = () => {
     if (selectedRoom?.zones && selectedRoom.zones.length > 0) {
       setZones(selectedRoom.zones);
     }
-  }, [selectedRoom?.id, selectedRoom?.latestFrame, selectedRoom?.latestBoxes, selectedRoom?.zones, selectedRoom?.occupancyCount]);
+  }, [selectedRoom?.id, selectedRoom?.latestFrame, selectedRoom?.latestBoxes, selectedRoom?.zones, selectedRoom?.occupancyCount, isCameraActive]);
 
   // 2. Continuous Backend Frame & YOLO Polling (Runs on mobile and web every 3s)
   useEffect(() => {
-    if (!isCameraActive) return;
+    if (!isCameraActive) {
+      setProcessedFrame('');
+      setDetectedPersons([]);
+      return;
+    }
     let stopped = false;
     const fetchLatest = async () => {
       if (stopped || !backendUrl) return;
@@ -259,6 +284,33 @@ export const RoomsView: React.FC = () => {
     }
     return inside;
   };
+
+  // Sync room layout zones dynamically as per selected layout
+  useEffect(() => {
+    const activeLayout = layouts.find(l => l.id === activeLayoutId) || layouts[0];
+    if (activeLayout && activeLayout.zones && activeLayout.zones.length > 0) {
+      const mappedZones: Zone[] = activeLayout.zones.map(z => {
+        const pointsStr = z.points.map(p => `${p[0] * 400},${p[1] * 320}`).join(' ');
+        const handles = z.points.map(p => ({ x: p[0] * 400, y: p[1] * 320 }));
+        const isOcc = detectedPersons.some(p => {
+          const center = { x: p.x + p.width / 2, y: p.y + p.height / 2 };
+          return isPointInPolygon(center, handles);
+        });
+        return {
+          id: String(z.id || (z as any).num || '1'),
+          name: z.name,
+          statusText: isOcc ? '● Occupied' : '○ Empty',
+          isOccupied: isOcc,
+          occupantCount: isOcc ? 1 : 0,
+          color: z.color,
+          points: pointsStr,
+          handles: handles,
+          assignedDeviceIds: [],
+        };
+      });
+      setZones(mappedZones);
+    }
+  }, [activeLayoutId, layouts, detectedPersons]);
 
   const autoStraightenAndSnap = (rawPoints: Point[]): Point[] => {
     if (rawPoints.length < 3) return rawPoints;
@@ -507,7 +559,8 @@ export const RoomsView: React.FC = () => {
       pushUndo(zones);
       setDraggingVertex(null);
       setDraggingZone(null);
-      setBackendVerifiedNotice('Zone coordinates updated & synchronized.');
+      void saveLayoutZones(activeLayoutId, zones);
+      setBackendVerifiedNotice('Zone coordinates updated & saved to database.');
       return;
     }
 
@@ -537,8 +590,9 @@ export const RoomsView: React.FC = () => {
       setSelectedZoneId(newZoneId);
       setIsStraightenedNotice(true);
       setTimeout(() => setIsStraightenedNotice(false), 3000);
-      setBackendVerifiedNotice('✨ New zone added! Auto-straightened & ready for device assignment.');
-      speakText(`${newZoneName} created and auto-straightened.`);
+      void saveLayoutZones(activeLayoutId, updated);
+      setBackendVerifiedNotice('✨ New zone added & saved to database!');
+      speakText(`${newZoneName} created and saved.`);
     }
 
     setIsDrawing(false);
@@ -630,49 +684,85 @@ export const RoomsView: React.FC = () => {
     const nextZones = zones.map(z => (z.id === target.id ? updatedZ1 : z)).concat(newZ2);
     setZones(nextZones);
     setSelectedZoneId(newZ2.id);
-    setBackendVerifiedNotice(`Zone divided into 2 editable halves (${orientation}).`);
+    void saveLayoutZones(activeLayoutId, nextZones);
+    setBackendVerifiedNotice(`Zone divided into 2 editable halves (${orientation}) & saved to database.`);
   };
 
   const handleResetZones = () => {
     pushUndo(zones);
     const defaultZones: Zone[] = [
       {
-        id: 'zone-1',
-        name: 'Zone 1: Study Desks',
-        statusText: '● 2 People Detected',
-        isOccupied: true,
-        occupantCount: 2,
-        color: '#FFB547',
-        points: '20,40 185,35 175,280 25,275',
-        handles: [
-          { x: 20, y: 40 },
-          { x: 185, y: 35 },
-          { x: 175, y: 280 },
-          { x: 25, y: 275 }
-        ],
-        assignedDeviceIds: ['fan-101-1', 'light-101-tubes'],
-        shapeType: 'polygon'
-      },
-      {
-        id: 'zone-2',
-        name: 'Zone 2: Presentation Area',
+        id: '1',
+        name: 'Zone 1 (Top-Left)',
         statusText: '○ Empty',
         isOccupied: false,
         occupantCount: 0,
-        color: '#27834A',
-        points: '215,35 380,45 375,275 225,280',
+        color: '#FFB547',
+        points: '24,45 192,54 192,166 36,186',
         handles: [
-          { x: 215, y: 35 },
-          { x: 380, y: 45 },
-          { x: 375, y: 275 },
-          { x: 225, y: 280 }
+          { x: 24, y: 45 },
+          { x: 192, y: 54 },
+          { x: 192, y: 166 },
+          { x: 36, y: 186 }
         ],
-        assignedDeviceIds: ['fan-101-2', 'light-101-whiteboard'],
+        assignedDeviceIds: [],
+        shapeType: 'polygon'
+      },
+      {
+        id: '2',
+        name: 'Zone 2 (Top-Right)',
+        statusText: '○ Empty',
+        isOccupied: false,
+        occupantCount: 0,
+        color: '#3B82F6',
+        points: '192,54 376,45 364,186 192,166',
+        handles: [
+          { x: 192, y: 54 },
+          { x: 376, y: 45 },
+          { x: 364, y: 186 },
+          { x: 192, y: 166 }
+        ],
+        assignedDeviceIds: [],
+        shapeType: 'polygon'
+      },
+      {
+        id: '3',
+        name: 'Zone 3 (Bottom-Left)',
+        statusText: '○ Empty',
+        isOccupied: false,
+        occupantCount: 0,
+        color: '#00E676',
+        points: '36,186 192,166 192,301 72,301',
+        handles: [
+          { x: 36, y: 186 },
+          { x: 192, y: 166 },
+          { x: 192, y: 301 },
+          { x: 72, y: 301 }
+        ],
+        assignedDeviceIds: [],
+        shapeType: 'polygon'
+      },
+      {
+        id: '4',
+        name: 'Zone 4 (Bottom-Right)',
+        statusText: '○ Empty',
+        isOccupied: false,
+        occupantCount: 0,
+        color: '#EF4444',
+        points: '192,166 364,186 328,301 192,301',
+        handles: [
+          { x: 192, y: 166 },
+          { x: 364, y: 186 },
+          { x: 328, y: 301 },
+          { x: 192, y: 301 }
+        ],
+        assignedDeviceIds: [],
         shapeType: 'polygon'
       }
     ];
     setZones(defaultZones);
-    setBackendVerifiedNotice('Restored default 2-zone classroom calibration.');
+    void saveLayoutZones(activeLayoutId, defaultZones);
+    setBackendVerifiedNotice('Restored default 4-zone layout & saved to database.');
   };
 
   const handleDeleteZone = (zoneId: string) => {
@@ -684,7 +774,8 @@ export const RoomsView: React.FC = () => {
     const filtered = zones.filter(z => z.id !== zoneId);
     setZones(filtered);
     setSelectedZoneId(filtered[0]?.id || '');
-    setBackendVerifiedNotice('Zone removed from camera grid.');
+    void saveLayoutZones(activeLayoutId, filtered);
+    setBackendVerifiedNotice('Zone removed & saved to database.');
   };
 
   const handleToggleDeviceAssignment = (zoneId: string, deviceId: string) => {
@@ -798,7 +889,7 @@ export const RoomsView: React.FC = () => {
     <View style={styles.container}>
       {/* Help Banner */}
       <View style={styles.helpBanner}>
-        <View style={styles.rowAlign}>
+        <View style={[styles.rowAlign, { flex: 1, minWidth: 0, marginRight: 8 }]}>
           <View style={styles.lightCircle}>
             <Icon name="lightbulb" size={20} color={colors.primary} />
           </View>
@@ -865,63 +956,122 @@ export const RoomsView: React.FC = () => {
           <View style={styles.yoloPill}>
             <View style={styles.pingDot} />
             <Text style={styles.yoloText}>
-              YOLO Vision: {detectedPersons.length || selectedRoom.occupancyCount} Humans Detected
+              YOLO Vision: {detectedPersons.length || selectedRoom.occupancyCount} Humans
             </Text>
           </View>
 
-          <View style={styles.straightPill}>
-            <Icon name="auto_fix_high" size={16} color={colors.tertiary} />
-            <Text style={styles.straightText}>Auto-Straightened Shapes</Text>
+          <View style={[styles.straightPill, { backgroundColor: '#E5F2F8' }]}>
+            <Icon name="thermostat" size={15} color={colors.secondary} />
+            <Text style={[styles.straightText, { color: colors.secondary }]}>
+              {sensorData.temperature.toFixed(1)}°C • {sensorData.humidity.toFixed(0)}% RH
+            </Text>
+          </View>
+        </View>
+
+        {/* Layout Selector Chips */}
+        <View style={{ marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.borderSubtle }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+
+            <Text style={{ fontSize: 12, fontWeight: '700', color: colors.textSecondary }}>
+              Room Blueprint Layout
+            </Text>
+            <Text style={{ fontSize: 10, fontWeight: '600', color: colors.primary }}>
+              3D Editor on Website
+            </Text>
+          </View>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+            {layouts.map((l) => {
+              const isActive = l.id === activeLayoutId;
+              return (
+                <TouchableOpacity
+                  key={l.id}
+                  onPress={() => selectLayout(l.id)}
+                  style={{
+                    paddingVertical: 5,
+                    paddingHorizontal: 10,
+                    borderRadius: 999,
+                    backgroundColor: isActive ? colors.surfaceGreen : colors.surface,
+                    borderWidth: 1.5,
+                    borderColor: isActive ? colors.primary : colors.borderSubtle,
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: isActive ? colors.primary : colors.textPrimary }}>
+                    {isActive ? `✓ ${l.name}` : l.name}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </View>
       </View>
 
+
       {/* Interactive Camera Viewport & Zone Canvas Card */}
       <View style={styles.card}>
         {/* Top Control Bar */}
-        <View style={styles.rowBetween}>
-          <View style={styles.rowAlign}>
-            <Text style={styles.activeZoneLabel}>Active Zone:</Text>
-            <View style={styles.zoneChip}>
-              <Text style={styles.zoneChipText}>
-                {selectedZone?.name} ({selectedZone?.occupantCount} present)
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.rowAlignCompact}>
-            <Text style={styles.activeZoneLabel}>Send frame:</Text>
-            {[3, 5, 10].map(seconds => (
-              <TouchableOpacity
-                key={seconds}
-                onPress={() => setCaptureInterval(seconds as 3 | 5 | 10)}
-                style={[styles.smallToggle, captureInterval === seconds && styles.smallToggleActive]}
-              >
-                <Text style={[styles.smallToggleText, captureInterval === seconds && styles.smallToggleTextActive]}>
-                  {seconds}s
+        <View style={styles.camControlsContainer}>
+          <View style={styles.camHeaderRow}>
+            <View style={styles.activeZoneBadge}>
+              <Text style={styles.activeZoneLabel}>Zone:</Text>
+              <View style={styles.zoneChip}>
+                <Text style={styles.zoneChipText} numberOfLines={1}>
+                  {selectedZone?.name || 'Monitoring'} ({selectedZone?.occupantCount || 0} present)
                 </Text>
-              </TouchableOpacity>
-            ))}
+              </View>
+            </View>
+
             <TouchableOpacity
               onPress={handleToggleCamera}
               style={[
-                styles.smallToggle,
-                isCameraActive ? styles.smallToggleActive : { backgroundColor: '#fee2e2', borderColor: '#ef4444' }
+                styles.camToggleBtn,
+                isCameraActive ? styles.camToggleBtnOn : styles.camToggleBtnOff
               ]}
+              activeOpacity={0.8}
             >
-              <Icon name={isCameraActive ? 'videocam' : 'videocam_off'} size={15} color={isCameraActive ? '#FFFFFF' : '#ef4444'} />
-              <Text style={[styles.smallToggleText, isCameraActive ? styles.smallToggleTextActive : { color: '#ef4444', fontWeight: '700' }]}>
+              <Icon
+                name={isCameraActive ? 'videocam' : 'videocam_off'}
+                size={15}
+                color={isCameraActive ? '#FFFFFF' : '#BA1A1A'}
+              />
+              <Text
+                style={[
+                  styles.camToggleBtnText,
+                  isCameraActive ? styles.camToggleBtnTextOn : styles.camToggleBtnTextOff
+                ]}
+              >
                 {isCameraActive ? 'Camera ON' : 'Camera OFF'}
               </Text>
             </TouchableOpacity>
+          </View>
+
+          <View style={styles.camSettingsRow}>
+            <View style={styles.frameIntervalRow}>
+              <Text style={styles.activeZoneLabel}>Send frame:</Text>
+              {[3, 5, 10].map(seconds => (
+                <TouchableOpacity
+                  key={seconds}
+                  onPress={() => setCaptureInterval(seconds as 3 | 5 | 10)}
+                  style={[styles.smallToggle, captureInterval === seconds && styles.smallToggleActive]}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.smallToggleText, captureInterval === seconds && styles.smallToggleTextActive]}>
+                    {seconds}s
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
             <TouchableOpacity
               onPress={() => setMirrorCamera(value => !value)}
               style={[styles.smallToggle, mirrorCamera && styles.smallToggleActive]}
+              activeOpacity={0.8}
             >
               <Icon name="flip" size={15} color={mirrorCamera ? '#FFFFFF' : colors.textPrimary} />
               <Text style={[styles.smallToggleText, mirrorCamera && styles.smallToggleTextActive]}>Mirror</Text>
             </TouchableOpacity>
           </View>
+        </View>
 
           <View style={[styles.rowAlignCompact, { display: 'none' }]}>
             <TouchableOpacity
@@ -962,7 +1112,6 @@ export const RoomsView: React.FC = () => {
               </Text>
             </TouchableOpacity>
           </View>
-        </View>
 
         {/* Video Frame */}
         <View style={styles.videoFrame}>
@@ -1253,6 +1402,25 @@ export const RoomsView: React.FC = () => {
               <Icon name="redo" size={18} color={colors.textPrimary} />
             </TouchableOpacity>
 
+            <TouchableOpacity
+              onPress={() => {
+                void saveLayoutZones(activeLayoutId, zones);
+              }}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                backgroundColor: colors.primary,
+                paddingHorizontal: 10,
+                paddingVertical: 6,
+                borderRadius: 999,
+                gap: 4,
+              }}
+              activeOpacity={0.8}
+            >
+              <Icon name="save" size={15} color="#FFFFFF" />
+              <Text style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 11 }}>Save to DB</Text>
+            </TouchableOpacity>
+
             <TouchableOpacity onPress={handleResetZones} style={styles.resetBtn}>
               <Icon name="cleaning_services" size={18} color={colors.danger} />
             </TouchableOpacity>
@@ -1434,11 +1602,11 @@ export const RoomsView: React.FC = () => {
         return (
           <View key={`card-${zone.id}`} style={styles.card}>
             <View style={styles.rowBetween}>
-              <View style={styles.rowAlign}>
+              <View style={[styles.rowAlign, { flex: 1, minWidth: 0, marginRight: 8 }]}>
                 <View style={[styles.zoneDotRing, { backgroundColor: `${zone.color}40` }]}>
                   <View style={[styles.zoneDotCore, { backgroundColor: zone.color }]} />
                 </View>
-                <Text style={styles.zoneSummaryName}>{zone.name}</Text>
+                <Text style={styles.zoneSummaryName} numberOfLines={1}>{zone.name}</Text>
               </View>
               <View
                 style={[
@@ -1451,6 +1619,7 @@ export const RoomsView: React.FC = () => {
                     styles.occupancyStatusText,
                     { color: zone.isOccupied ? colors.primary : colors.textSecondary },
                   ]}
+                  numberOfLines={1}
                 >
                   {zone.statusText}
                 </Text>
@@ -1477,7 +1646,7 @@ export const RoomsView: React.FC = () => {
                       ]}
                       activeOpacity={0.85}
                     >
-                      <View style={styles.rowAlign}>
+                      <View style={[styles.rowAlign, { flex: 1, minWidth: 0, marginRight: 8 }]}>
                         <View style={styles.devIconCircle}>
                           <Icon
                             name={dev.category === 'fans' ? 'mode_fan' : 'lightbulb'}
@@ -1485,11 +1654,11 @@ export const RoomsView: React.FC = () => {
                             color={isOn ? '#FFFFFF' : colors.textSecondary}
                           />
                         </View>
-                        <View>
-                          <Text style={[styles.devBtnTitle, isOn && { color: '#FFFFFF' }]}>
+                        <View style={{ flex: 1, minWidth: 0 }}>
+                          <Text style={[styles.devBtnTitle, isOn && { color: '#FFFFFF' }]} numberOfLines={1}>
                             {dev.name}
                           </Text>
-                          <Text style={[styles.devBtnSub, isOn && { color: 'rgba(255,255,255,0.85)' }]}>
+                          <Text style={[styles.devBtnSub, isOn && { color: 'rgba(255,255,255,0.85)' }]} numberOfLines={1}>
                             {dev.category === 'fans' ? `Speed ${dev.speedLevel || 2} (Cooling)` : 'Bright (80%)'}
                           </Text>
                         </View>
@@ -1678,6 +1847,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(227, 229, 216, 0.7)',
     gap: 14,
+    width: '100%',
+    maxWidth: '100%',
+    overflow: 'hidden',
   },
   roomSelectCol: {
     gap: 4,
@@ -1738,6 +1910,8 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: 'rgba(227, 229, 216, 0.5)',
     paddingTop: 8,
+    flexWrap: 'wrap',
+    gap: 8,
   },
   yoloPill: {
     flexDirection: 'row',
@@ -1773,6 +1947,23 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: colors.tertiary,
   },
+  camControlsContainer: {
+    gap: 8,
+    width: '100%',
+  },
+  camHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  activeZoneBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flex: 1,
+    minWidth: 0,
+  },
   activeZoneLabel: {
     fontSize: 13,
     fontWeight: '700',
@@ -1783,11 +1974,51 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 10,
     paddingVertical: 4,
+    flexShrink: 1,
   },
   zoneChipText: {
     fontSize: 12,
     fontWeight: '800',
     color: colors.primary,
+  },
+  camToggleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    gap: 5,
+  },
+  camToggleBtnOn: {
+    backgroundColor: colors.primary,
+  },
+  camToggleBtnOff: {
+    backgroundColor: '#fee2e2',
+    borderWidth: 1,
+    borderColor: '#ef4444',
+  },
+  camToggleBtnText: {
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  camToggleBtnTextOn: {
+    color: '#FFFFFF',
+  },
+  camToggleBtnTextOff: {
+    color: '#BA1A1A',
+  },
+  camSettingsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  frameIntervalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    flexWrap: 'wrap',
   },
   smallToggle: {
     flexDirection: 'row',
@@ -1811,7 +2042,8 @@ const styles = StyleSheet.create({
   },
   videoFrame: {
     width: '100%',
-    height: 300,
+    maxWidth: '100%',
+    height: 250,
     borderRadius: 20,
     overflow: 'hidden',
     backgroundColor: '#0e1f16',
@@ -2049,6 +2281,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 4,
+    flexWrap: 'wrap',
+    gap: 8,
   },
   sectionHeaderTitle: {
     fontSize: 18,

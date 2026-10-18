@@ -52,13 +52,13 @@ export const MoreView: React.FC = () => {
       </View>
       {/* Authorized Tester Banner */}
       <View style={styles.testerBanner}>
-        <View style={styles.rowAlign}>
+        <View style={[styles.rowAlign, { flex: 1, minWidth: 0, marginRight: 8 }]}>
           <View style={styles.shieldIconCircle}>
             <Icon name="verified_user" size={22} color="#FFFFFF" />
           </View>
-          <View>
-            <Text style={styles.testerTitle}>Authorized Tester Mode</Text>
-            <Text style={styles.testerSub}>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={styles.testerTitle} numberOfLines={1}>Authorized Tester Mode</Text>
+            <Text style={styles.testerSub} numberOfLines={2}>
               Diagnostic controls & system override unlocked
             </Text>
           </View>
@@ -483,6 +483,9 @@ const styles = StyleSheet.create({
     padding: 18,
     borderWidth: 1,
     borderColor: 'rgba(159, 104, 0, 0.2)',
+    width: '100%',
+    maxWidth: '100%',
+    overflow: 'hidden',
   },
   rowAlign: {
     flexDirection: 'row',
@@ -501,6 +504,7 @@ const styles = StyleSheet.create({
   },
   colFlex: {
     flex: 1,
+    minWidth: 0,
   },
   shieldIconCircle: {
     width: 40,
@@ -547,6 +551,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(227, 229, 216, 0.7)',
     gap: 14,
+    width: '100%',
+    maxWidth: '100%',
+    overflow: 'hidden',
   },
   robotCircle: {
     width: 52,
@@ -684,6 +691,9 @@ const styles = StyleSheet.create({
     padding: 16,
     borderWidth: 1,
     borderColor: colors.borderSubtle,
+    width: '100%',
+    maxWidth: '100%',
+    overflow: 'hidden',
   },
   moduleIconBox: {
     width: 44,

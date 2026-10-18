@@ -127,7 +127,15 @@ export const serosApi = {
 
   async addDevice(
     baseUrl: string,
-    payload: { quadrant?: number | string; section_id?: string | number; name: string; category: 'lights' | 'fans' | 'ac'; relay?: number; power_watts?: number }
+    payload: {
+      quadrant?: number | string;
+      quadrants?: number[];
+      section_id?: string | number;
+      name: string;
+      category: 'lights' | 'fans' | 'ac';
+      relay?: number;
+      power_watts?: number;
+    }
   ) {
     const res = await fetch(`${baseUrl.replace(/\/+$/, '')}/api/devices/`, {
       method: 'POST',
@@ -142,7 +150,14 @@ export const serosApi = {
   async updateDevice(
     baseUrl: string,
     deviceId: string,
-    payload: { name?: string; category?: 'lights' | 'fans' | 'ac'; quadrant?: number | string; relay?: number; power_watts?: number }
+    payload: {
+      name?: string;
+      category?: 'lights' | 'fans' | 'ac';
+      quadrant?: number | string;
+      quadrants?: number[];
+      relay?: number;
+      power_watts?: number;
+    }
   ) {
     const res = await fetch(`${baseUrl.replace(/\/+$/, '')}/api/devices/${encodeURIComponent(deviceId)}/update/`, {
       method: 'POST',
@@ -152,6 +167,24 @@ export const serosApi = {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
     return data.device;
+  },
+
+  async sendAcCommand(
+    baseUrl: string,
+    action: 'power' | 'temp' | 'mode' | 'fan' | 'vendor' | 'learn' | 'cancel',
+    params: Record<string, any> = {}
+  ) {
+    const cleanUrl = baseUrl.replace(/\/+$/, '');
+    const query = new URLSearchParams(params).toString();
+    const endpoint = query ? `${cleanUrl}/api/ac/${action}/?${query}` : `${cleanUrl}/api/ac/${action}/`;
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `AC command failed (HTTP ${res.status})`);
+    return data;
   },
 
   async deleteDevice(baseUrl: string, deviceId: string) {
@@ -350,4 +383,48 @@ export const serosApi = {
     }
     return await res.json();
   },
+
+  // 15. Room Layouts API
+  async getLayouts(baseUrl: string): Promise<{
+    status: string;
+    active_layout_id: string;
+    layouts: {
+      id: string;
+      name: string;
+      subtitle?: string;
+      isDefault?: boolean;
+      zones: { id: string; num: number; name: string; color: string; points: [number, number][] }[];
+    }[];
+  }> {
+    const cleanUrl = baseUrl.replace(/\/+$/, '');
+    const res = await fetch(`${cleanUrl}/api/layouts/`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  },
+
+  async selectLayout(baseUrl: string, layoutId: string): Promise<boolean> {
+    const cleanUrl = baseUrl.replace(/\/+$/, '');
+    const res = await fetch(`${cleanUrl}/api/layouts/select/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ layout_id: layoutId }),
+    });
+    return res.ok;
+  },
+
+  // 16. Live Sensor Data (ESP32 HTU21DF)
+  async getSensorData(baseUrl: string): Promise<{
+    status: string;
+    temperature: number;
+    humidity: number;
+    energy_saving_percent: number;
+    source: string;
+    esp32_connected: boolean;
+  }> {
+    const cleanUrl = baseUrl.replace(/\/+$/, '');
+    const res = await fetch(`${cleanUrl}/api/sensor/`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  },
 };
+

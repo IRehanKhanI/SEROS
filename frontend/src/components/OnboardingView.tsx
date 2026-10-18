@@ -363,6 +363,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(227, 229, 216, 0.7)',
     gap: 14,
+    width: '100%',
+    maxWidth: '100%',
+    overflow: 'hidden',
   },
   langHeader: {
     fontSize: 14,
@@ -376,6 +379,7 @@ const styles = StyleSheet.create({
   langRow: {
     flexDirection: 'row',
     gap: 8,
+    flexWrap: 'wrap',
   },
   langBtn: {
     flex: 1,

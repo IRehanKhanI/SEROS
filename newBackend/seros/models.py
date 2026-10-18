@@ -51,3 +51,32 @@ class Detection(models.Model):
     boxes = models.JSONField(default=list)
     processed_frame = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
+
+class RoomLayout(models.Model):
+    layout_id = models.CharField(max_length=100, unique=True, db_index=True)
+    name = models.CharField(max_length=160)
+    subtitle = models.CharField(max_length=200, blank=True)
+    description = models.TextField(blank=True)
+    is_default = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=False)
+    zones = models.JSONField(default=list)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["id"]
+
+    def to_dict(self):
+        return {
+            "id": self.layout_id,
+            "name": self.name,
+            "subtitle": self.subtitle or "",
+            "description": self.description or "",
+            "isDefault": self.is_default,
+            "zones": self.zones if isinstance(self.zones, list) else [],
+        }
+
+    def __str__(self):
+        return f"{self.name} ({self.layout_id})"
+

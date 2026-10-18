@@ -87,20 +87,28 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.canvas,
     minHeight: '100%',
+    width: '100%',
+    maxWidth: 480,
+    alignSelf: 'center',
   },
   appContainer: {
     flex: 1,
     width: '100%',
+    maxWidth: '100%',
     backgroundColor: colors.canvas,
     position: 'relative',
+    overflow: 'hidden',
   },
   scrollArea: {
     flex: 1,
     width: '100%',
+    maxWidth: '100%',
   },
   scrollContent: {
     paddingHorizontal: 16,
     paddingTop: 16,
     paddingBottom: 96,
+    width: '100%',
+    maxWidth: '100%',
   },
 });

@@ -541,6 +541,7 @@ const styles = StyleSheet.create({
   },
   bannerBadge: {
     width: '100%',
+    maxWidth: '100%',
     backgroundColor: colors.surfaceGreen,
     padding: 16,
     borderRadius: 24,
@@ -549,12 +550,15 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     borderWidth: 1,
     borderColor: 'rgba(39, 131, 74, 0.2)',
+    overflow: 'hidden',
   },
   bannerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     flex: 1,
+    minWidth: 0,
+    marginRight: 8,
   },
   bannerIconCircle: {
     width: 40,
@@ -566,6 +570,7 @@ const styles = StyleSheet.create({
   },
   bannerTextContainer: {
     flex: 1,
+    minWidth: 0,
   },
   bannerTitle: {
     fontSize: 16,
@@ -584,6 +589,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     borderWidth: 1,
     borderColor: 'rgba(39, 131, 74, 0.2)',
+    flexShrink: 0,
   },
   nodePillText: {
     fontSize: 12,
@@ -597,11 +603,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(227, 229, 216, 0.7)',
     gap: 16,
+    width: '100%',
+    maxWidth: '100%',
+    overflow: 'hidden',
   },
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
+    flexWrap: 'wrap',
+    gap: 8,
   },
   statusRow: {
     flexDirection: 'row',

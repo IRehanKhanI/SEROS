@@ -38,6 +38,21 @@ const getDeviceQuadrantNum = (device: Device): number => {
   return 1;
 };
 
+const getDeviceQuadrants = (device: Device): number[] => {
+  if (device.quadrants && Array.isArray(device.quadrants) && device.quadrants.length > 0) {
+    return [...device.quadrants].sort((a, b) => a - b);
+  }
+  return [getDeviceQuadrantNum(device)];
+};
+
+const formatDeviceQuadrants = (device: Device): string => {
+  const quads = getDeviceQuadrants(device);
+  if (quads.length === 4) return 'All Quadrants (Room AC)';
+  if (quads.length > 1) return `Quadrants: ${quads.map(q => `Q${q}`).join(', ')}`;
+  const qMeta = QUADRANT_MAP[quads[0]] || { pos: 'Area', pin: 15 + quads[0] };
+  return `Q${quads[0]} (${qMeta.pos}) • Relay ${device.relay || quads[0]}`;
+};
+
 export const HomeView: React.FC = () => {
   const {
     navigateToTab,
@@ -52,12 +67,23 @@ export const HomeView: React.FC = () => {
     addDevice,
     updateDevice,
     deleteDevice,
+    sensorData,
+    activeLayoutId,
+    layouts,
+    selectLayout,
   } = useApp();
 
   const activeRooms = rooms.filter(r => r.occupancyCount > 0).length;
   const peoplePresent = rooms.reduce((sum, room) => sum + room.occupancyCount, 0);
-  const powerWatts = devices.reduce((sum, device) => sum + (device.status === 'ON' ? device.powerWatts : 0), 0);
+  const powerWatts = devices.reduce((sum, device) => {
+    if (device.status === 'ON') {
+      const w = device.powerWatts || device.ratedWatts || (device.category === 'ac' ? 1450 : device.category === 'fans' ? 65 : 24);
+      return sum + w;
+    }
+    return sum;
+  }, 0);
   const activeDevicesCount = devices.filter(d => d.status === 'ON').length;
+
 
   const [showAudioToast, setShowAudioToast] = useState(false);
   const [emptyRoomsTurnedOff, setEmptyRoomsTurnedOff] = useState(false);
@@ -282,7 +308,7 @@ export const HomeView: React.FC = () => {
               <Icon name="bolt" size={26} color={colors.primary} fill />
             </View>
             <View style={[styles.pillBadge, { backgroundColor: colors.surfaceGreen }]}>
-              <Text style={[styles.pillBadgeText, { color: colors.primary }]}>Great!</Text>
+              <Text style={[styles.pillBadgeText, { color: colors.primary }]}>{activeDevicesCount} ON</Text>
             </View>
           </View>
           <View>
@@ -291,23 +317,40 @@ export const HomeView: React.FC = () => {
           </View>
         </View>
 
-        {/* Metric 3: Money Saved Today */}
+        {/* Metric 3: Live Climate Sensor (ESP32 HTU21DF) */}
+        <View style={styles.metricCard}>
+          <View style={styles.rowBetween}>
+            <View style={[styles.metricIconBox, { backgroundColor: '#E5F2F8' }]}>
+              <Icon name="thermostat" size={26} color={colors.secondary} fill />
+            </View>
+            <View style={[styles.pillBadge, { backgroundColor: '#E5F2F8' }]}>
+              <Text style={[styles.pillBadgeText, { color: colors.secondary }]}>ESP32 Live</Text>
+            </View>
+          </View>
+          <View>
+            <Text style={[styles.metricBigText, { color: colors.secondary }]}>{sensorData.temperature.toFixed(1)}°C</Text>
+            <Text style={styles.metricSmallText}>{sensorData.humidity.toFixed(0)}% Humidity • HTU21DF</Text>
+          </View>
+        </View>
+
+        {/* Metric 4: Energy Saved & Layout */}
         <View style={styles.savedCard}>
           <View style={styles.rowAlign}>
             <View style={styles.piggyBox}>
               <Icon name="savings" size={32} color={colors.primary} fill />
             </View>
             <View>
-              <Text style={styles.savedLabel}>Saved Today</Text>
-              <Text style={styles.savedAmount}>Live automation</Text>
+              <Text style={styles.savedLabel}>Energy Saved</Text>
+              <Text style={styles.savedAmount}>{sensorData.energy_saving_percent}% Less Draw</Text>
             </View>
           </View>
           <View style={styles.ecoPill}>
             <Icon name="eco" size={18} color={colors.primary} />
-            <Text style={styles.ecoText}>Eco Target Met</Text>
+            <Text style={styles.ecoText}>{layouts.find(l => l.id === activeLayoutId)?.name || 'Layout 1'}</Text>
           </View>
         </View>
       </View>
+
 
       {/* Helpful Actions */}
       <View style={styles.sectionHeader}>
@@ -429,7 +472,7 @@ export const HomeView: React.FC = () => {
           return (
             <View key={device.id} style={styles.card}>
               <View style={styles.rowBetween}>
-                <View style={[styles.rowAlign, { flex: 1 }]}>
+                <View style={[styles.rowAlign, { flex: 1, minWidth: 0, marginRight: 8 }]}>
                   <View
                     style={[
                       styles.deviceIconCircle,
@@ -461,14 +504,14 @@ export const HomeView: React.FC = () => {
                     />
                   </View>
 
-                  <View style={{ flex: 1, paddingRight: 6 }}>
+                  <View style={{ flex: 1, minWidth: 0, paddingRight: 4 }}>
                     <Text style={styles.deviceName} numberOfLines={1}>{device.name}</Text>
                     <Text style={styles.deviceSub} numberOfLines={1}>
-                      Q{qNum} ({qMeta.pos}) • Relay {device.relay || qNum} (GPIO {qMeta.pin})
+                      {formatDeviceQuadrants(device)}
                     </Text>
                     <View style={styles.deviceStatusRow}>
                       <View style={[styles.statusBullet, { backgroundColor: isOn ? colors.primary : '#6f7a6f' }]} />
-                      <Text style={[styles.deviceStatusText, { color: isOn ? colors.primary : colors.textSecondary }]}>
+                      <Text style={[styles.deviceStatusText, { color: isOn ? colors.primary : colors.textSecondary }]} numberOfLines={1}>
                         {isOn ? `Active (${device.powerWatts}W)` : 'Standby (OFF)'}
                       </Text>
                     </View>
@@ -855,6 +898,9 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     elevation: 2,
     gap: 14,
+    width: '100%',
+    maxWidth: '100%',
+    overflow: 'hidden',
   },
   rowBetween: {
     flexDirection: 'row',
@@ -871,6 +917,7 @@ const styles = StyleSheet.create({
   },
   colFlex: {
     flex: 1,
+    minWidth: 0,
   },
   sunEmoji: {
     fontSize: 32,
@@ -957,6 +1004,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 4,
     marginTop: 4,
+    flexWrap: 'wrap',
+    gap: 8,
   },
   sectionTitle: {
     fontSize: 18,
@@ -1015,6 +1064,7 @@ const styles = StyleSheet.create({
   },
   savedCard: {
     width: '100%',
+    maxWidth: '100%',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -1023,6 +1073,7 @@ const styles = StyleSheet.create({
     padding: 18,
     borderWidth: 1,
     borderColor: 'rgba(227, 229, 216, 0.7)',
+    overflow: 'hidden',
   },
   piggyBox: {
     width: 52,

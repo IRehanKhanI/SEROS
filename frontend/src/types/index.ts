@@ -9,18 +9,44 @@ export interface Device {
   quadrant?: string;
   quadrantId?: string;
   quadrantNum?: number;
+  quadrants?: number[]; // e.g. [1, 2, 3, 4] for Room AC, [1, 2] for Hall front, etc.
   relay?: number;
   category: 'lights' | 'fans' | 'ac';
   status: 'ON' | 'OFF' | 'Standby';
   speedLevel?: number; // 0, 1, 2, 3
   brightness?: number; // 0 - 100
   powerWatts: number;
+  ratedWatts?: number;
   isAutomated: boolean;
   automationNote?: string;
   zoneId?: string;
   temperature?: number;
   targetTemperature?: number;
 }
+
+export interface SensorData {
+  temperature: number;
+  humidity: number;
+  energy_saving_percent: number;
+  source: string;
+  esp32_connected: boolean;
+}
+
+export interface RoomLayout {
+  id: string;
+  name: string;
+  subtitle?: string;
+  description?: string;
+  isDefault?: boolean;
+  zones: {
+    id: string;
+    num: number;
+    name: string;
+    color: string;
+    points: [number, number][];
+  }[];
+}
+
 
 export interface DetectedPerson {
   id: string;

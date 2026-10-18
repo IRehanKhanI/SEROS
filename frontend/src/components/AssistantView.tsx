@@ -42,7 +42,7 @@ export const AssistantView: React.FC = () => {
   return (
     <View style={styles.container}>
       {/* Assistant Context Badge */}
-      <View style={styles.rowBetween}>
+      <View style={[styles.rowBetween, { flexWrap: 'wrap', gap: 8 }]}>
         <View style={styles.rowAlign}>
           <View style={styles.pulseContainer}>
             <View style={styles.pulseRing} />
@@ -60,20 +60,20 @@ export const AssistantView: React.FC = () => {
       {/* Audio Accessibility Bar */}
       <View style={styles.card}>
         <View style={styles.rowBetween}>
-          <View style={styles.rowAlign}>
+          <View style={[styles.rowAlign, { flex: 1, minWidth: 0, marginRight: 8 }]}>
             <View style={styles.volumeIconBox}>
               <Icon name="volume_up" size={24} color={colors.primary} />
             </View>
-            <View>
+            <View style={{ flex: 1, minWidth: 0 }}>
               <View style={styles.rowAlignCompact}>
-                <Text style={styles.voiceTitle}>
+                <Text style={styles.voiceTitle} numberOfLines={1}>
                   {settings.voiceGuidance ? 'Voice Mode Active' : 'Voice Mode Paused'}
                 </Text>
                 <View style={styles.clarityPill}>
                   <Text style={styles.clarityText}>High Clarity</Text>
                 </View>
               </View>
-              <Text style={styles.voiceSub}>
+              <Text style={styles.voiceSub} numberOfLines={1}>
                 {settings.voiceGuidance
                   ? 'Speaks every response clearly'
                   : 'Tap switch to enable voice speech'}
@@ -350,6 +350,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(227, 229, 216, 0.7)',
     gap: 12,
+    width: '100%',
+    maxWidth: '100%',
+    overflow: 'hidden',
   },
   volumeIconBox: {
     width: 40,

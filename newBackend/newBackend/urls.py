@@ -17,7 +17,12 @@ urlpatterns = [
     path("api/camera/frame/", views.latest_camera_frame),
     path("api/sections/", views.sections_api),
     path("api/sections/<int:section_id>/", views.delete_section),
-    path("api/sections/<int:section_id>/delete/", views.delete_section),
     path("api/esp32/status/", views.esp32_status),
+    path("api/layouts/", views.layouts_api),
+    path("api/layouts/select/", views.select_layout),
+    path("api/layouts/<str:layout_id>/", views.layout_detail),
+    path("api/sensor/", views.sensor_data),
+    path("api/weather/", views.weather_api),
+    path("api/ai-automap/", views.ai_automap),
 ]
 

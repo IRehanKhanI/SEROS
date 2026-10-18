@@ -22,11 +22,26 @@ const QUADRANTS = [
 ];
 
 const getDeviceQuadrantNum = (device: Device): number => {
-  if (device.relay && device.relay >= 1 && device.relay <= 4) return device.relay;
   if (device.quadrantNum && device.quadrantNum >= 1 && device.quadrantNum <= 4) return device.quadrantNum;
+  if (device.relay && device.relay >= 1 && device.relay <= 4) return device.relay;
   const match = (device.quadrant || device.room || '').match(/quadrant\s*(\d)/i);
   if (match) return parseInt(match[1], 10);
   return 1;
+};
+
+export const getDeviceQuadrants = (device: Device): number[] => {
+  if (device.quadrants && Array.isArray(device.quadrants) && device.quadrants.length > 0) {
+    return [...device.quadrants].sort((a, b) => a - b);
+  }
+  return [getDeviceQuadrantNum(device)];
+};
+
+export const formatDeviceQuadrants = (device: Device): string => {
+  const quads = getDeviceQuadrants(device);
+  if (quads.length === 4) return 'All Quadrants (Room AC)';
+  if (quads.length > 1) return `Quadrants: ${quads.map(q => `Q${q}`).join(', ')}`;
+  const qObj = QUADRANTS.find(q => q.num === quads[0]);
+  return qObj ? `${qObj.name} (${qObj.position})` : `Quadrant ${quads[0]}`;
 };
 
 export const DevicesView: React.FC = () => {
@@ -42,15 +57,19 @@ export const DevicesView: React.FC = () => {
     backendVerifiedNotice,
     setBackendVerifiedNotice,
     setIsRuleWizardOpen,
+    sensorData,
+    activeLayoutId,
+    layouts,
   } = useApp();
 
   const [selectedQuadrant, setSelectedQuadrant] = useState<string>('all');
   const [activeFilter, setActiveFilter] = useState<'all' | 'lights' | 'fans' | 'ac'>('all');
+  const [selectedAddLayoutId, setSelectedAddLayoutId] = useState<string>(activeLayoutId || 'layout-1');
 
   // Edit Device Modal State
   const [deviceToEdit, setDeviceToEdit] = useState<Device | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState<boolean>(false);
-  const [editQuadrant, setEditQuadrant] = useState<number>(1);
+  const [editQuadrants, setEditQuadrants] = useState<number[]>([1]);
   const [editCategory, setEditCategory] = useState<'lights' | 'fans' | 'ac'>('lights');
   const [editName, setEditName] = useState<string>('');
   const [editRelay, setEditRelay] = useState<string>('1');
@@ -60,7 +79,7 @@ export const DevicesView: React.FC = () => {
 
   // Add Device Modal State
   const [isAddModalOpen, setIsAddModalOpen] = useState<boolean>(false);
-  const [newQuadrant, setNewQuadrant] = useState<number>(1);
+  const [newQuadrants, setNewQuadrants] = useState<number[]>([1]);
   const [newCategory, setNewCategory] = useState<'lights' | 'fans' | 'ac'>('lights');
   const [newName, setNewName] = useState<string>('');
   const [newRelay, setNewRelay] = useState<string>('1');
@@ -68,14 +87,16 @@ export const DevicesView: React.FC = () => {
   const [isSubmittingNew, setIsSubmittingNew] = useState<boolean>(false);
   const [addError, setAddError] = useState<string | null>(null);
 
+
   // Delete Confirmation Modal State
   const [deviceToDelete, setDeviceToDelete] = useState<Device | null>(null);
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
 
-  // Filter by selected quadrant first
+  // Filter by selected quadrant: show devices that cover this quadrant
   const quadrantDevices = devices.filter((d) => {
     if (selectedQuadrant === 'all') return true;
-    return getDeviceQuadrantNum(d) === parseInt(selectedQuadrant, 10);
+    const targetQ = parseInt(selectedQuadrant, 10);
+    return getDeviceQuadrants(d).includes(targetQ);
   });
 
   // Filter by category
@@ -88,18 +109,39 @@ export const DevicesView: React.FC = () => {
   const fansCount = quadrantDevices.filter((d) => d.category === 'fans').length;
   const acCount = quadrantDevices.filter((d) => d.category === 'ac').length;
 
-  const currentQuadObj = QUADRANTS.find((q) => q.id === selectedQuadrant);
+  const totalLiveWatts = devices.reduce((sum, device) => {
+    if (device.status === 'ON') {
+      const w = device.powerWatts || device.ratedWatts || (device.category === 'ac' ? 1450 : device.category === 'fans' ? 65 : 24);
+      return sum + w;
+    }
+    return sum;
+  }, 0);
+  const activeCount = devices.filter(d => d.status === 'ON').length;
+
+  const activeLayout = layouts.find(l => l.id === activeLayoutId) || layouts[0];
+  const currentQuadrants = (activeLayout && activeLayout.zones && activeLayout.zones.length > 0)
+    ? activeLayout.zones.map(z => ({
+        id: String(z.num || z.id),
+        num: z.num,
+        name: z.name,
+        position: z.name,
+        relay: z.num,
+      }))
+    : QUADRANTS;
+
+  const currentQuadObj = currentQuadrants.find((q) => q.id === selectedQuadrant);
   const currentQuadName = selectedQuadrant === 'all'
     ? 'All Quadrants'
-    : (currentQuadObj ? `${currentQuadObj.name} (${currentQuadObj.position})` : `Quadrant ${selectedQuadrant}`);
+    : (currentQuadObj ? `${currentQuadObj.name}` : `Quadrant ${selectedQuadrant}`);
+
 
   const handleOpenEditModal = (device: Device) => {
-    const qNum = getDeviceQuadrantNum(device);
+    const quads = getDeviceQuadrants(device);
     setDeviceToEdit(device);
-    setEditQuadrant(qNum);
+    setEditQuadrants(quads);
     setEditCategory(device.category);
     setEditName(device.name);
-    setEditRelay(String(device.relay || qNum));
+    setEditRelay(String(device.relay || quads[0] || 1));
     setEditWatts(String(device.powerWatts || (device.category === 'lights' ? 44 : device.category === 'fans' ? 38 : 1200)));
     setEditError(null);
     setIsEditModalOpen(true);
@@ -107,14 +149,26 @@ export const DevicesView: React.FC = () => {
 
   const handleEditCategoryChange = (cat: 'lights' | 'fans' | 'ac') => {
     setEditCategory(cat);
+    if (cat === 'ac' && editQuadrants.length === 1) {
+      setEditQuadrants([1, 2, 3, 4]); // Auto-suggest all quadrants for AC
+    }
     if (cat === 'lights') setEditWatts('44');
     else if (cat === 'fans') setEditWatts('38');
     else setEditWatts('1200');
   };
 
-  const handleEditQuadrantChange = (quadNum: number) => {
-    setEditQuadrant(quadNum);
-    setEditRelay(String(quadNum));
+  const toggleEditQuadrant = (quadNum: number) => {
+    setEditQuadrants((prev) => {
+      if (prev.includes(quadNum)) {
+        if (prev.length === 1) return prev; // Keep at least one selected
+        return prev.filter((q) => q !== quadNum);
+      }
+      return [...prev, quadNum].sort((a, b) => a - b);
+    });
+  };
+
+  const selectAllEditQuadrants = () => {
+    setEditQuadrants([1, 2, 3, 4]);
   };
 
   const handleSaveEditDevice = async () => {
@@ -124,14 +178,19 @@ export const DevicesView: React.FC = () => {
       setEditError('Please enter a name for the device.');
       return;
     }
+    if (editQuadrants.length === 0) {
+      setEditError('Please select at least one quadrant.');
+      return;
+    }
     setIsSubmittingEdit(true);
     setEditError(null);
     try {
       await updateDevice(deviceToEdit.id, {
         name: trimmed,
         category: editCategory,
-        quadrant: editQuadrant,
-        relay: editRelay && !isNaN(parseInt(editRelay, 10)) ? parseInt(editRelay, 10) : editQuadrant,
+        quadrant: editQuadrants[0],
+        quadrants: editQuadrants,
+        relay: editRelay && !isNaN(parseInt(editRelay, 10)) ? parseInt(editRelay, 10) : editQuadrants[0],
         power_watts: editWatts && !isNaN(parseFloat(editWatts)) ? parseFloat(editWatts) : undefined,
       });
       setIsEditModalOpen(false);
@@ -148,7 +207,7 @@ export const DevicesView: React.FC = () => {
     const validQuad = targetQuad >= 1 && targetQuad <= 4 ? targetQuad : 1;
     const defaultTypeName = 'Light';
 
-    setNewQuadrant(validQuad);
+    setNewQuadrants([validQuad]);
     setNewCategory('lights');
     setNewName(`Quadrant ${validQuad} ${defaultTypeName}`);
     setNewRelay(String(validQuad));
@@ -159,18 +218,47 @@ export const DevicesView: React.FC = () => {
 
   const handleCategoryChange = (cat: 'lights' | 'fans' | 'ac') => {
     setNewCategory(cat);
-    const defaultTypeName = cat === 'lights' ? 'Light' : cat === 'fans' ? 'Fan' : 'AC Unit';
-    setNewName(`Quadrant ${newQuadrant} ${defaultTypeName}`);
-    if (cat === 'lights') setNewWatts('44');
-    else if (cat === 'fans') setNewWatts('38');
-    else setNewWatts('1200');
+    if (cat === 'ac') {
+      setNewQuadrants([1, 2, 3, 4]); // Realistic Room AC: defaults to all quadrants
+      setNewName('Room AC Unit');
+      setNewWatts('1200');
+    } else {
+      const q = newQuadrants[0] || 1;
+      setNewQuadrants([q]);
+      const defaultTypeName = cat === 'lights' ? 'Light' : 'Fan';
+      setNewName(`Quadrant ${q} ${defaultTypeName}`);
+      setNewWatts(cat === 'lights' ? '44' : '38');
+    }
   };
 
-  const handleQuadrantChange = (quadNum: number) => {
-    setNewQuadrant(quadNum);
-    setNewRelay(String(quadNum));
-    const defaultTypeName = newCategory === 'lights' ? 'Light' : newCategory === 'fans' ? 'Fan' : 'AC Unit';
-    setNewName(`Quadrant ${quadNum} ${defaultTypeName}`);
+  const toggleNewQuadrant = (quadNum: number) => {
+    setNewQuadrants((prev) => {
+      let updated: number[];
+      if (prev.includes(quadNum)) {
+        if (prev.length === 1) return prev; // Keep at least one selected
+        updated = prev.filter((q) => q !== quadNum);
+      } else {
+        updated = [...prev, quadNum].sort((a, b) => a - b);
+      }
+      // Update default name if user hasn't heavily customized it
+      const typeName = newCategory === 'lights' ? 'Light' : newCategory === 'fans' ? 'Fan' : 'AC Unit';
+      if (updated.length === 4) {
+        setNewName(`Room ${typeName}`);
+      } else if (updated.length > 1) {
+        setNewName(`Q${updated.join('+Q')} ${typeName}`);
+      } else {
+        setNewName(`Quadrant ${updated[0]} ${typeName}`);
+      }
+      setNewRelay(String(updated[0]));
+      return updated;
+    });
+  };
+
+  const selectAllNewQuadrants = () => {
+    setNewQuadrants([1, 2, 3, 4]);
+    const typeName = newCategory === 'lights' ? 'Light' : newCategory === 'fans' ? 'Fan' : 'AC Unit';
+    setNewName(`Room ${typeName}`);
+    setNewRelay('1');
   };
 
   const handleCreateDevice = async () => {
@@ -179,14 +267,19 @@ export const DevicesView: React.FC = () => {
       setAddError('Please enter a name for the device.');
       return;
     }
+    if (newQuadrants.length === 0) {
+      setAddError('Please select at least one quadrant.');
+      return;
+    }
     setIsSubmittingNew(true);
     setAddError(null);
     try {
       await addDevice({
-        quadrant: newQuadrant,
+        quadrant: newQuadrants[0],
+        quadrants: newQuadrants,
         name: trimmed,
         category: newCategory,
-        relay: newRelay && !isNaN(parseInt(newRelay, 10)) ? parseInt(newRelay, 10) : newQuadrant,
+        relay: newRelay && !isNaN(parseInt(newRelay, 10)) ? parseInt(newRelay, 10) : newQuadrants[0],
         power_watts: newWatts && !isNaN(parseFloat(newWatts)) ? parseFloat(newWatts) : undefined,
       });
       setIsAddModalOpen(false);
@@ -254,6 +347,59 @@ export const DevicesView: React.FC = () => {
         </Text>
       </View>
 
+      {/* Live Telemetry & Environmental Status Banner */}
+      <View
+        style={{
+          flexDirection: 'row',
+          backgroundColor: colors.surface,
+          borderRadius: 14,
+          padding: 12,
+          marginBottom: 12,
+          borderWidth: 1,
+          borderColor: colors.borderSubtle,
+          justifyContent: 'space-around',
+
+          alignItems: 'center',
+        }}
+      >
+        <View style={{ alignItems: 'center' }}>
+          <Text style={{ fontSize: 10, fontWeight: '700', color: colors.textSecondary, textTransform: 'uppercase' }}>
+            Live Power
+          </Text>
+          <Text style={{ fontSize: 16, fontWeight: '800', color: colors.primary }}>
+            {totalLiveWatts} W
+          </Text>
+          <Text style={{ fontSize: 10, color: colors.textSecondary }}>
+            {activeCount} of {devices.length} ON
+          </Text>
+        </View>
+        <View style={{ width: 1, height: 32, backgroundColor: colors.borderSubtle }} />
+        <View style={{ alignItems: 'center' }}>
+          <Text style={{ fontSize: 10, fontWeight: '700', color: colors.textSecondary, textTransform: 'uppercase' }}>
+            Room Temp
+          </Text>
+          <Text style={{ fontSize: 16, fontWeight: '800', color: colors.secondary }}>
+            {sensorData.temperature.toFixed(1)}°C
+          </Text>
+          <Text style={{ fontSize: 10, color: colors.secondary }}>
+            HTU21DF Live
+          </Text>
+        </View>
+        <View style={{ width: 1, height: 32, backgroundColor: colors.borderSubtle }} />
+        <View style={{ alignItems: 'center' }}>
+          <Text style={{ fontSize: 10, fontWeight: '700', color: colors.textSecondary, textTransform: 'uppercase' }}>
+            Humidity
+          </Text>
+          <Text style={{ fontSize: 16, fontWeight: '800', color: colors.tertiary }}>
+            {sensorData.humidity.toFixed(0)}%
+          </Text>
+          <Text style={{ fontSize: 10, color: colors.tertiary }}>
+            Relative
+          </Text>
+        </View>
+      </View>
+
+
       {/* Quadrant Selector */}
       <View style={styles.sectionFilterContainer}>
         <Text style={styles.filterSectionLabel}>Filter by Quadrant</Text>
@@ -280,8 +426,8 @@ export const DevicesView: React.FC = () => {
             </Text>
           </TouchableOpacity>
 
-          {QUADRANTS.map((quad) => {
-            const count = devices.filter((d) => getDeviceQuadrantNum(d) === quad.num).length;
+          {currentQuadrants.map((quad) => {
+            const count = devices.filter((d) => getDeviceQuadrants(d).includes(quad.num)).length;
             const isSelected = selectedQuadrant === quad.id;
             return (
               <TouchableOpacity
@@ -299,7 +445,7 @@ export const DevicesView: React.FC = () => {
                     isSelected && styles.sectionPillTextActive,
                   ]}
                 >
-                  {quad.name} • {quad.position} ({count})
+                  {quad.name} ({count})
                 </Text>
               </TouchableOpacity>
             );
@@ -440,7 +586,7 @@ export const DevicesView: React.FC = () => {
             return (
               <View key={device.id} style={styles.deviceCard}>
                 <View style={styles.rowBetween}>
-                  <View style={[styles.rowAlign, { flex: 1 }]}>
+                  <View style={[styles.rowAlign, { flex: 1, minWidth: 0, marginRight: 8 }]}>
                     <View
                       style={[
                         styles.deviceIconCircle,
@@ -480,14 +626,28 @@ export const DevicesView: React.FC = () => {
                       />
                     </View>
 
-                    <View style={{ flex: 1, paddingRight: 6 }}>
+                    <View style={{ flex: 1, minWidth: 0, paddingRight: 4 }}>
                       <Text style={styles.deviceName} numberOfLines={1}>{device.name}</Text>
                       <Text style={styles.deviceSub} numberOfLines={1}>
-                        Quadrant {getDeviceQuadrantNum(device)} • Relay {device.relay || getDeviceQuadrantNum(device)} •{' '}
-                        {isFan && `Smart Fan • ${device.powerWatts}W Live`}
-                        {isLight && `LED Fixture • ${device.powerWatts}W Live`}
-                        {isAC && `Dual Inverter • ${device.powerWatts}W Consumed`}
+                        {formatDeviceQuadrants(device)} • Relay {device.relay || getDeviceQuadrantNum(device)} •{' '}
+                        {isFan && `Smart Fan • ${isOn ? (device.powerWatts || device.ratedWatts || 65) : 0}W Live`}
+                        {isLight && `LED Fixture • ${isOn ? (device.powerWatts || device.ratedWatts || 24) : 0}W Live`}
+                        {isAC && `Universal IR AC • ${isOn ? (device.powerWatts || device.ratedWatts || 1450) : 0}W Live`}
                       </Text>
+
+                      {/* Quadrant Coverage Pills for Multi-Quadrant Devices */}
+                      {getDeviceQuadrants(device).length > 1 && (
+                        <View style={styles.cardQuadrantBadgesRow}>
+                          {getDeviceQuadrants(device).map((q) => (
+                            <View key={q} style={styles.cardQuadrantPill}>
+                              <Text style={styles.cardQuadrantPillText}>Q{q}</Text>
+                            </View>
+                          ))}
+                          <Text style={styles.cardQuadrantSummaryText}>
+                            {getDeviceQuadrants(device).length === 4 ? 'Entire Room Coverage' : 'Multi-Zone'}
+                          </Text>
+                        </View>
+                      )}
                     </View>
                   </View>
 
@@ -513,12 +673,13 @@ export const DevicesView: React.FC = () => {
                           styles.deviceStatusText,
                           { color: isOn ? colors.primary : '#3f4940' },
                         ]}
+                        numberOfLines={1}
                       >
                         {isOn
-                          ? device.automationNote || 'Running (Auto)'
+                          ? 'Auto ON'
                           : device.status === 'Standby'
                           ? 'Standby'
-                          : 'OFF (Idle)'}
+                          : 'OFF'}
                       </Text>
                     </View>
 
@@ -586,21 +747,33 @@ export const DevicesView: React.FC = () => {
                   </View>
                 )}
 
-                {/* AC Thermostat Display */}
+                {/* AC Thermostat & Universal IR Remote Controller Box */}
                 {isAC && (
-                  <View style={styles.daylightBox}>
-                    <View style={styles.rowAlign}>
-                      <Icon name="thermostat" size={24} color={colors.secondary} />
-                      <View>
-                        <Text style={styles.thermoLabel}>Ambient Temperature</Text>
-                        <Text style={styles.thermoTemp}>
-                          {device.temperature || 24.5}°C
+                  <View style={styles.acCardBox}>
+                    <View style={styles.rowBetween}>
+                      <View style={styles.rowAlign}>
+                        <Icon name="thermostat" size={24} color={colors.secondary} />
+                        <View style={{ marginLeft: 6 }}>
+                          <Text style={styles.thermoLabel}>Climate Control</Text>
+                          <Text style={styles.thermoTemp}>
+                            Room: {sensorData.temperature.toFixed(1)}°C • Target: {device.targetTemperature || 24}°C
+                          </Text>
+                        </View>
+
+                      </View>
+                      <View style={styles.targetPill}>
+                        <Icon name="sensors" size={14} color={colors.primary} />
+                        <Text style={styles.targetText}>
+                          IR Remote (GPIO 4/14)
                         </Text>
                       </View>
                     </View>
-                    <View style={styles.targetPill}>
-                      <Text style={styles.targetText}>
-                        Target {device.targetTemperature || 23}°C
+                    <View style={styles.acRuleBanner}>
+                      <Icon name="info" size={14} color={colors.secondary} />
+                      <Text style={styles.acRuleBannerText}>
+                        {getDeviceQuadrants(device).length > 1
+                          ? `Stays ON if someone is in ${getDeviceQuadrants(device).map(q => `Q${q}`).join(', ')}`
+                          : `Stays ON if someone is in Quadrant ${getDeviceQuadrants(device)[0]}`}
                       </Text>
                     </View>
                   </View>
@@ -769,24 +942,37 @@ export const DevicesView: React.FC = () => {
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalScrollContent}>
-              {/* Target Quadrant */}
+              {/* Target Quadrants (Multi-Select) */}
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>TARGET CAMERA QUADRANT</Text>
+                <View style={styles.rowBetween}>
+                  <Text style={styles.inputLabel}>ASSIGNED CAMERA QUADRANTS</Text>
+                  <TouchableOpacity
+                    onPress={selectAllEditQuadrants}
+                    style={styles.quickSelectBtn}
+                    activeOpacity={0.8}
+                  >
+                    <Icon name="select_all" size={14} color={colors.primary} />
+                    <Text style={styles.quickSelectBtnText}>Select All (Room AC)</Text>
+                  </TouchableOpacity>
+                </View>
                 <View style={styles.quadrantGridRow}>
                   {QUADRANTS.map((quad) => {
-                    const isSelected = editQuadrant === quad.num;
+                    const isSelected = editQuadrants.includes(quad.num);
                     return (
                       <TouchableOpacity
                         key={quad.id}
-                        onPress={() => handleEditQuadrantChange(quad.num)}
+                        onPress={() => toggleEditQuadrant(quad.num)}
                         style={[styles.quadrantSelectorCard, isSelected && styles.quadrantSelectorCardActive]}
                         activeOpacity={0.8}
                       >
-                        <View style={styles.rowAlign}>
-                          <View style={[styles.quadrantBadgeDot, isSelected && styles.quadrantBadgeDotActive]} />
-                          <Text style={[styles.quadrantCardTitle, isSelected && styles.quadrantCardTitleActive]}>
-                            {quad.name}
-                          </Text>
+                        <View style={styles.rowBetween}>
+                          <View style={styles.rowAlign}>
+                            <View style={[styles.quadrantBadgeDot, isSelected && styles.quadrantBadgeDotActive]} />
+                            <Text style={[styles.quadrantCardTitle, isSelected && styles.quadrantCardTitleActive]}>
+                              {quad.name}
+                            </Text>
+                          </View>
+                          {isSelected && <Icon name="check" size={16} color={colors.primary} />}
                         </View>
                         <Text style={[styles.quadrantCardSub, isSelected && styles.quadrantCardSubActive]}>
                           {quad.position} • Relay {quad.relay}
@@ -794,6 +980,36 @@ export const DevicesView: React.FC = () => {
                       </TouchableOpacity>
                     );
                   })}
+                </View>
+                {/* Quick Presets */}
+                <View style={styles.presetRow}>
+                  <TouchableOpacity
+                    onPress={() => setEditQuadrants([1, 2])}
+                    style={[styles.presetChip, editQuadrants.length === 2 && editQuadrants.includes(1) && editQuadrants.includes(2) && styles.presetChipActive]}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.presetChipText, editQuadrants.length === 2 && editQuadrants.includes(1) && editQuadrants.includes(2) && styles.presetChipTextActive]}>
+                      Front Half (Q1+Q2)
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => setEditQuadrants([3, 4])}
+                    style={[styles.presetChip, editQuadrants.length === 2 && editQuadrants.includes(3) && editQuadrants.includes(4) && styles.presetChipActive]}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.presetChipText, editQuadrants.length === 2 && editQuadrants.includes(3) && editQuadrants.includes(4) && styles.presetChipTextActive]}>
+                      Back Half (Q3+Q4)
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={selectAllEditQuadrants}
+                    style={[styles.presetChip, editQuadrants.length === 4 && styles.presetChipActive]}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.presetChipText, editQuadrants.length === 4 && styles.presetChipTextActive]}>
+                      Entire Room (All 4)
+                    </Text>
+                  </TouchableOpacity>
                 </View>
               </View>
 
@@ -972,24 +1188,74 @@ export const DevicesView: React.FC = () => {
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalScrollContent}>
-              {/* Target Quadrant */}
+              {/* Step 1: Select Layout First */}
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>CAMERA QUADRANT</Text>
+                <View style={styles.rowBetween}>
+                  <Text style={styles.inputLabel}>STEP 1: SELECT ROOM LAYOUT FIRST</Text>
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: colors.primary }}>
+                    {layouts.find(l => l.id === selectedAddLayoutId)?.name || 'Layout 1'}
+                  </Text>
+                </View>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ flexDirection: 'row', gap: 6, paddingVertical: 4 }}>
+                  {layouts.map((l) => {
+                    const isSelected = selectedAddLayoutId === l.id;
+                    return (
+                      <TouchableOpacity
+                        key={l.id}
+                        onPress={() => setSelectedAddLayoutId(l.id)}
+                        style={{
+                          paddingVertical: 6,
+                          paddingHorizontal: 12,
+                          borderRadius: 999,
+                          backgroundColor: isSelected ? colors.surfaceGreen : colors.surface,
+                          borderWidth: 1.5,
+                          borderColor: isSelected ? colors.primary : colors.borderSubtle,
+                        }}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={{ fontSize: 11, fontWeight: '800', color: isSelected ? colors.primary : colors.textPrimary }}>
+                          {isSelected ? `✓ ${l.name}` : l.name}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+
+              {/* Step 2: Target Quadrants (Multi-Select) */}
+              <View style={styles.inputGroup}>
+                <View style={styles.rowBetween}>
+                  <Text style={styles.inputLabel}>
+                    STEP 2: ASSIGNED ZONES ({layouts.find(l => l.id === selectedAddLayoutId)?.name || 'Layout 1'})
+                  </Text>
+                  <TouchableOpacity
+                    onPress={selectAllNewQuadrants}
+                    style={styles.quickSelectBtn}
+                    activeOpacity={0.8}
+                  >
+                    <Icon name="select_all" size={14} color={colors.primary} />
+                    <Text style={styles.quickSelectBtnText}>Select All (Room AC)</Text>
+                  </TouchableOpacity>
+                </View>
+
                 <View style={styles.quadrantGridRow}>
                   {QUADRANTS.map((quad) => {
-                    const isSelected = newQuadrant === quad.num;
+                    const isSelected = newQuadrants.includes(quad.num);
                     return (
                       <TouchableOpacity
                         key={quad.id}
-                        onPress={() => handleQuadrantChange(quad.num)}
+                        onPress={() => toggleNewQuadrant(quad.num)}
                         style={[styles.quadrantSelectorCard, isSelected && styles.quadrantSelectorCardActive]}
                         activeOpacity={0.8}
                       >
-                        <View style={styles.rowAlign}>
-                          <View style={[styles.quadrantBadgeDot, isSelected && styles.quadrantBadgeDotActive]} />
-                          <Text style={[styles.quadrantCardTitle, isSelected && styles.quadrantCardTitleActive]}>
-                            {quad.name}
-                          </Text>
+                        <View style={styles.rowBetween}>
+                          <View style={styles.rowAlign}>
+                            <View style={[styles.quadrantBadgeDot, isSelected && styles.quadrantBadgeDotActive]} />
+                            <Text style={[styles.quadrantCardTitle, isSelected && styles.quadrantCardTitleActive]}>
+                              {quad.name}
+                            </Text>
+                          </View>
+                          {isSelected && <Icon name="check" size={16} color={colors.primary} />}
                         </View>
                         <Text style={[styles.quadrantCardSub, isSelected && styles.quadrantCardSubActive]}>
                           {quad.position} • Relay {quad.relay}
@@ -997,6 +1263,46 @@ export const DevicesView: React.FC = () => {
                       </TouchableOpacity>
                     );
                   })}
+                </View>
+                {/* Quick Presets */}
+                <View style={styles.presetRow}>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setNewQuadrants([1, 2]);
+                      setNewRelay('1');
+                      const typeName = newCategory === 'lights' ? 'Light' : newCategory === 'fans' ? 'Fan' : 'AC Unit';
+                      setNewName(`Q1+Q2 ${typeName}`);
+                    }}
+                    style={[styles.presetChip, newQuadrants.length === 2 && newQuadrants.includes(1) && newQuadrants.includes(2) && styles.presetChipActive]}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.presetChipText, newQuadrants.length === 2 && newQuadrants.includes(1) && newQuadrants.includes(2) && styles.presetChipTextActive]}>
+                      Front Half (Q1+Q2)
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setNewQuadrants([3, 4]);
+                      setNewRelay('3');
+                      const typeName = newCategory === 'lights' ? 'Light' : newCategory === 'fans' ? 'Fan' : 'AC Unit';
+                      setNewName(`Q3+Q4 ${typeName}`);
+                    }}
+                    style={[styles.presetChip, newQuadrants.length === 2 && newQuadrants.includes(3) && newQuadrants.includes(4) && styles.presetChipActive]}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.presetChipText, newQuadrants.length === 2 && newQuadrants.includes(3) && newQuadrants.includes(4) && styles.presetChipTextActive]}>
+                      Back Half (Q3+Q4)
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={selectAllNewQuadrants}
+                    style={[styles.presetChip, newQuadrants.length === 4 && styles.presetChipActive]}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.presetChipText, newQuadrants.length === 4 && styles.presetChipTextActive]}>
+                      Entire Room (All 4)
+                    </Text>
+                  </TouchableOpacity>
                 </View>
               </View>
 
@@ -1249,6 +1555,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    flexWrap: 'wrap',
   },
   addDeviceHeaderBtn: {
     flexDirection: 'row',
@@ -1407,6 +1714,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(227, 229, 216, 0.7)',
     gap: 14,
+    width: '100%',
+    maxWidth: '100%',
+    overflow: 'hidden',
   },
   deviceIconCircle: {
     width: 48,
@@ -1428,15 +1738,17 @@ const styles = StyleSheet.create({
   deviceCardRightHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
+    flexShrink: 0,
   },
   deviceStatusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
     borderRadius: 999,
-    gap: 6,
+    gap: 4,
+    maxWidth: 95,
   },
   editCardBtn: {
     width: 32,
@@ -1953,5 +2265,93 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '800',
     color: '#FFFFFF',
+  },
+  cardQuadrantBadgesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 4,
+    marginTop: 4,
+  },
+  cardQuadrantPill: {
+    backgroundColor: colors.surfaceGreen,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 110, 50, 0.25)',
+  },
+  cardQuadrantPillText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: colors.primary,
+  },
+  cardQuadrantSummaryText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.textSecondary,
+    marginLeft: 4,
+  },
+  acCardBox: {
+    backgroundColor: colors.surfaceContainerLow,
+    padding: 12,
+    borderRadius: 16,
+    gap: 8,
+  },
+  acRuleBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(0, 110, 50, 0.08)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  acRuleBannerText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.primary,
+    flex: 1,
+  },
+  quickSelectBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    backgroundColor: colors.surfaceGreen,
+  },
+  quickSelectBtnText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: colors.primary,
+  },
+  presetRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 4,
+  },
+  presetChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: colors.surfaceContainerLow,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+  },
+  presetChipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  presetChipText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+  presetChipTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '800',
   },
 });

@@ -5,7 +5,8 @@ import { Icon } from './Icon';
 import { colors } from '../theme/colors';
 
 export const EnergyView: React.FC = () => {
-  const { setBackendVerifiedNotice, speakText } = useApp();
+  const { setBackendVerifiedNotice, speakText, sensorData, devices } = useApp();
+  const currentLiveWatts = devices.reduce((sum, d) => sum + (d.status === 'ON' ? (d.powerWatts || d.ratedWatts || (d.category === 'ac' ? 1450 : d.category === 'fans' ? 65 : 24)) : 0), 0);
 
   const [activeTab, setActiveTab] = useState<'today' | '7days' | 'month'>('today');
   const [selectedDayDetail, setSelectedDayDetail] = useState<{
@@ -48,16 +49,15 @@ export const EnergyView: React.FC = () => {
     <View style={styles.container}>
       {/* Plain-Language Summary Hero Card */}
       <View style={styles.heroCard}>
-        
-
         <View style={styles.headlineCol}>
           <Text style={styles.headlineTitle}>
-            You used 18% less electricity today! 🎉
+            You used {sensorData.energy_saving_percent}% less electricity today! 🎉
           </Text>
           <Text style={styles.headlineSubtitle}>
-            Great job! Your classrooms and labs are powered down safely.
+            Live Load: {currentLiveWatts} W • Room: {sensorData.temperature.toFixed(1)}°C • {sensorData.humidity.toFixed(0)}% RH
           </Text>
         </View>
+
 
         <View style={styles.costCallout}>
           <View style={styles.rowAlign}>
@@ -438,6 +438,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(227, 229, 216, 0.7)',
     gap: 14,
+    width: '100%',
+    maxWidth: '100%',
+    overflow: 'hidden',
   },
   meterChip: {
     flexDirection: 'row',
@@ -552,6 +555,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(227, 229, 216, 0.7)',
     gap: 14,
+    width: '100%',
+    maxWidth: '100%',
+    overflow: 'hidden',
   },
   rowBetween: {
     flexDirection: 'row',
@@ -845,12 +851,16 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     borderRadius: 999,
     minHeight: 52,
+    paddingHorizontal: 16,
+    width: '100%',
     gap: 8,
   },
   downloadBtnText: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '800',
     color: '#FFFFFF',
+    textAlign: 'center',
+    flexShrink: 1,
   },
   modalBackdrop: {
     flex: 1,
