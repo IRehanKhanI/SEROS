@@ -165,16 +165,21 @@ export const RoomsView: React.FC = () => {
               setProcessedFrame(result.frame);
             }
             if (Array.isArray(result.boxes)) {
-              setDetectedPersons(result.boxes.map((box, index) => ({
-                id: `person-${index}`,
-                x: box.x1 * 400,
-                y: box.y1 * 320,
-                width: (box.x2 - box.x1) * 400,
-                height: (box.y2 - box.y1) * 320,
-                confidence: box.confidence,
-                label: `Human ${Math.round(box.confidence * 100)}%`,
-              })));
-            } else {
+              const bStr = JSON.stringify(result.boxes);
+              if (bStr !== prevBoxesJsonRef.current) {
+                prevBoxesJsonRef.current = bStr;
+                setDetectedPersons(result.boxes.map((box, index) => ({
+                  id: `person-${index}`,
+                  x: box.x1 * 400,
+                  y: box.y1 * 320,
+                  width: (box.x2 - box.x1) * 400,
+                  height: (box.y2 - box.y1) * 320,
+                  confidence: box.confidence,
+                  label: `Human ${Math.round(box.confidence * 100)}%`,
+                })));
+              }
+            } else if (prevBoxesJsonRef.current !== '[]') {
+              prevBoxesJsonRef.current = '[]';
               setDetectedPersons([]);
             }
           }
@@ -224,15 +229,19 @@ export const RoomsView: React.FC = () => {
             if (!stopped && res) {
               if (res.processed_frame) setProcessedFrame(res.processed_frame);
               if (Array.isArray(res.boxes)) {
-                setDetectedPersons(res.boxes.map((box, index) => ({
-                  id: `person-${index}`,
-                  x: box.x1 * 400,
-                  y: box.y1 * 320,
-                  width: (box.x2 - box.x1) * 400,
-                  height: (box.y2 - box.y1) * 320,
-                  confidence: box.confidence,
-                  label: `Human ${Math.round(box.confidence * 100)}%`,
-                })));
+                const bStr = JSON.stringify(res.boxes);
+                if (bStr !== prevBoxesJsonRef.current) {
+                  prevBoxesJsonRef.current = bStr;
+                  setDetectedPersons(res.boxes.map((box, index) => ({
+                    id: `person-${index}`,
+                    x: box.x1 * 400,
+                    y: box.y1 * 320,
+                    width: (box.x2 - box.x1) * 400,
+                    height: (box.y2 - box.y1) * 320,
+                    confidence: box.confidence,
+                    label: `Human ${Math.round(box.confidence * 100)}%`,
+                  })));
+                }
               }
             }
           } catch {
@@ -296,32 +305,34 @@ export const RoomsView: React.FC = () => {
     return inside;
   };
 
-  // Sync room layout zones dynamically as per selected layout
+  const prevActiveLayoutIdRef = useRef<string>(activeLayoutId);
+
+  // Sync room layout zones ONLY when user explicitly switches to a different layout
   useEffect(() => {
-    const activeLayout = layouts.find(l => l.id === activeLayoutId) || layouts[0];
-    if (activeLayout && activeLayout.zones && activeLayout.zones.length > 0) {
-      const mappedZones: Zone[] = activeLayout.zones.map(z => {
-        const pointsStr = z.points.map(p => `${p[0] * 400},${p[1] * 320}`).join(' ');
-        const handles = z.points.map(p => ({ x: p[0] * 400, y: p[1] * 320 }));
-        const isOcc = detectedPersons.some(p => {
-          const center = { x: p.x + p.width / 2, y: p.y + p.height / 2 };
-          return isPointInPolygon(center, handles);
+    if (activeLayoutId && activeLayoutId !== prevActiveLayoutIdRef.current) {
+      prevActiveLayoutIdRef.current = activeLayoutId;
+      const activeLayout = layouts.find(l => l.id === activeLayoutId);
+      if (activeLayout && activeLayout.zones && activeLayout.zones.length > 0) {
+        const mappedZones: Zone[] = activeLayout.zones.map(z => {
+          const pointsStr = z.points.map(p => `${p[0] * 400},${p[1] * 320}`).join(' ');
+          const handles = z.points.map(p => ({ x: p[0] * 400, y: p[1] * 320 }));
+          return {
+            id: String(z.id || (z as any).num || '1'),
+            num: (z as any).num,
+            name: z.name,
+            statusText: '○ Empty',
+            isOccupied: false,
+            occupantCount: 0,
+            color: z.color,
+            points: pointsStr,
+            handles: handles,
+            assignedDeviceIds: (z as any).assignedDeviceIds || [],
+          };
         });
-        return {
-          id: String(z.id || (z as any).num || '1'),
-          name: z.name,
-          statusText: isOcc ? '● Occupied' : '○ Empty',
-          isOccupied: isOcc,
-          occupantCount: isOcc ? 1 : 0,
-          color: z.color,
-          points: pointsStr,
-          handles: handles,
-          assignedDeviceIds: [],
-        };
-      });
-      setZones(mappedZones);
+        setZones(mappedZones);
+      }
     }
-  }, [activeLayoutId, layouts, detectedPersons]);
+  }, [activeLayoutId]);
 
   const autoStraightenAndSnap = (rawPoints: Point[]): Point[] => {
     if (rawPoints.length < 3) return rawPoints;
@@ -383,42 +394,24 @@ export const RoomsView: React.FC = () => {
     return d;
   };
 
-  const prevOccupancyMapRef = useRef<string>('');
-
-  // Re-evaluate Occupancy locally for live badge display (safe against recursive loops)
-  useEffect(() => {
-    if (detectedPersons.length === 0) return;
-    const occupancyMap: { [zoneId: string]: number } = {};
-
-    zones.forEach(z => {
-      occupancyMap[z.id] = 0;
-    });
-
-    detectedPersons.forEach(person => {
-      const center = { x: person.x, y: person.y };
-      zones.forEach(zone => {
-        if (isPointInPolygon(center, zone.handles)) {
-          occupancyMap[zone.id] = (occupancyMap[zone.id] || 0) + 1;
-        }
-      });
-    });
-
-    const occStr = JSON.stringify(occupancyMap);
-    if (occStr === prevOccupancyMapRef.current) return;
-    prevOccupancyMapRef.current = occStr;
-
-    setZones(prevZones =>
-      prevZones.map(z => {
-        const count = occupancyMap[z.id] || 0;
-        if (z.occupantCount === count) return z;
-        return {
-          ...z,
-          occupantCount: count,
-          isOccupied: count > 0,
-          statusText: count > 0 ? `● ${count} People Detected` : '○ Empty',
-        };
-      })
-    );
+  // Pure computed occupancy: derived directly during render without any state mutation or effect loop
+  const getZoneDisplayOccupancy = useCallback((zone: Zone) => {
+    if (detectedPersons.length > 0) {
+      const count = detectedPersons.filter(person => {
+        const center = { x: person.x, y: person.y };
+        return isPointInPolygon(center, zone.handles);
+      }).length;
+      return {
+        count,
+        isOccupied: count > 0,
+        statusText: count > 0 ? `● ${count} People Detected` : '○ Empty',
+      };
+    }
+    return {
+      count: zone.occupantCount || 0,
+      isOccupied: zone.isOccupied || false,
+      statusText: zone.statusText || '○ Empty',
+    };
   }, [detectedPersons]);
 
   // Convert Screen Event to SVG Coordinates
@@ -1191,12 +1184,15 @@ export const RoomsView: React.FC = () => {
             } as any}
           >
             <Defs>
-              {zones.map((zone) => (
-                <LinearGradient key={`grad-${zone.id}`} id={`grad-${zone.id}`} x1="0%" y1="0%" x2="100%" y2="100%">
-                  <Stop offset="0%" stopColor={zone.color} stopOpacity={zone.isOccupied ? 0.45 : 0.2} />
-                  <Stop offset="100%" stopColor={zone.color} stopOpacity={zone.isOccupied ? 0.25 : 0.1} />
-                </LinearGradient>
-              ))}
+              {zones.map((zone) => {
+                const occ = getZoneDisplayOccupancy(zone);
+                return (
+                  <LinearGradient key={`grad-${zone.id}`} id={`grad-${zone.id}`} x1="0%" y1="0%" x2="100%" y2="100%">
+                    <Stop offset="0%" stopColor={zone.color} stopOpacity={occ.isOccupied ? 0.45 : 0.2} />
+                    <Stop offset="100%" stopColor={zone.color} stopOpacity={occ.isOccupied ? 0.25 : 0.1} />
+                  </LinearGradient>
+                );
+              })}
             </Defs>
 
             {/* Perspective Grid Lines */}
@@ -1251,7 +1247,7 @@ export const RoomsView: React.FC = () => {
                       fill={`url(#grad-${zone.id})`}
                       stroke={zone.color}
                       strokeWidth={isSelected ? 3.5 : 2.5}
-                      strokeDasharray={zone.isOccupied ? '6,4' : undefined}
+                      strokeDasharray={getZoneDisplayOccupancy(zone).isOccupied ? '6,4' : undefined}
                     />
                   ) : (
                     <Polygon
@@ -1259,7 +1255,7 @@ export const RoomsView: React.FC = () => {
                       fill={`url(#grad-${zone.id})`}
                       stroke={zone.color}
                       strokeWidth={isSelected ? 3.5 : 2.5}
-                      strokeDasharray={zone.isOccupied ? '6,4' : undefined}
+                      strokeDasharray={getZoneDisplayOccupancy(zone).isOccupied ? '6,4' : undefined}
                     />
                   )}
 
@@ -1473,23 +1469,28 @@ export const RoomsView: React.FC = () => {
             </View>
 
             <View style={styles.rowAlignCompact}>
-              <View
-                style={[
-                  styles.occupancyStatusPill,
-                  { backgroundColor: selectedZone.isOccupied ? colors.surfaceGreen : colors.canvas },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.occupancyStatusText,
-                    { color: selectedZone.isOccupied ? colors.primary : colors.textSecondary },
-                  ]}
-                >
-                  {selectedZone.occupantCount > 0
-                    ? `${selectedZone.occupantCount} People Inside`
-                    : 'Empty • Standby'}
-                </Text>
-              </View>
+              {(() => {
+                const selOcc = selectedZone ? getZoneDisplayOccupancy(selectedZone) : { count: 0, isOccupied: false, statusText: '○ Empty' };
+                return (
+                  <View
+                    style={[
+                      styles.occupancyStatusPill,
+                      { backgroundColor: selOcc.isOccupied ? colors.surfaceGreen : colors.canvas },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.occupancyStatusText,
+                        { color: selOcc.isOccupied ? colors.primary : colors.textSecondary },
+                      ]}
+                    >
+                      {selOcc.count > 0
+                        ? `${selOcc.count} People Inside`
+                        : 'Empty • Standby'}
+                    </Text>
+                  </View>
+                );
+              })()}
 
               <TouchableOpacity
                 onPress={() => handleDeleteZone(selectedZone.id)}
@@ -1623,6 +1624,7 @@ export const RoomsView: React.FC = () => {
           if (d.relay && (nameL.includes(`zone ${d.relay}`) || nameL.includes(`relay ${d.relay}`))) return true;
           return false;
         });
+        const occ = getZoneDisplayOccupancy(zone);
         return (
           <View key={`card-${zone.id}`} style={styles.card}>
             <View style={styles.rowBetween}>
@@ -1635,17 +1637,17 @@ export const RoomsView: React.FC = () => {
               <View
                 style={[
                   styles.occupancyStatusPill,
-                  { backgroundColor: zone.isOccupied ? colors.surfaceGreen : colors.canvas },
+                  { backgroundColor: occ.isOccupied ? colors.surfaceGreen : colors.canvas },
                 ]}
               >
                 <Text
                   style={[
                     styles.occupancyStatusText,
-                    { color: zone.isOccupied ? colors.primary : colors.textSecondary },
+                    { color: occ.isOccupied ? colors.primary : colors.textSecondary },
                   ]}
                   numberOfLines={1}
                 >
-                  {zone.statusText}
+                  {occ.statusText}
                 </Text>
               </View>
             </View>
@@ -1673,7 +1675,7 @@ export const RoomsView: React.FC = () => {
                       <View style={[styles.rowAlign, { flex: 1, minWidth: 0, marginRight: 8 }]}>
                         <View style={styles.devIconCircle}>
                           <Icon
-                            name={dev.category === 'fans' ? 'mode_fan' : 'lightbulb'}
+                            name={dev.category === 'fans' ? 'mode_fan' : dev.category === 'ac' ? 'ac_unit' : 'lightbulb'}
                             size={20}
                             color={isOn ? '#FFFFFF' : colors.textSecondary}
                           />
@@ -1683,7 +1685,7 @@ export const RoomsView: React.FC = () => {
                             {dev.name}
                           </Text>
                           <Text style={[styles.devBtnSub, isOn && { color: 'rgba(255,255,255,0.85)' }]} numberOfLines={1}>
-                            {dev.category === 'fans' ? `Speed ${dev.speedLevel || 2} (Cooling)` : 'Bright (80%)'}
+                            {dev.category === 'fans' ? `Speed ${dev.speedLevel || 2} (Cooling)` : dev.category === 'ac' ? '24°C Climate' : 'Bright (80%)'}
                           </Text>
                         </View>
                       </View>
@@ -1700,12 +1702,12 @@ export const RoomsView: React.FC = () => {
 
             <View style={styles.rowAlign}>
               <Icon
-                name={zone.isOccupied ? 'verified' : 'eco'}
+                name={occ.isOccupied ? 'verified' : 'eco'}
                 size={18}
-                color={zone.isOccupied ? colors.primary : colors.textSecondary}
+                color={occ.isOccupied ? colors.primary : colors.textSecondary}
               />
               <Text style={styles.automationSummaryText}>
-                {zone.isOccupied
+                {occ.isOccupied
                   ? 'Auto-turned ON because occupants were detected in this zone.'
                   : 'Auto-shut off (Sleeping) to conserve electricity while vacant.'}
               </Text>
