@@ -83,21 +83,24 @@ def _camera_loop():
                 continue
 
             # If an external client (browser or mobile) is already sending frames via /api/detect/
-            # in the last 4.5 seconds, yield camera control to avoid conflict.
-            if time.time() - _last_detect_call < 4.5:
+            # in the last 20 seconds, yield camera control completely to avoid webcam lock/conflicts.
+            if time.time() - _last_detect_call < 20.0:
                 if _active_cap is not None:
-                    _active_cap.release()
+                    try:
+                        _active_cap.release()
+                    except Exception:
+                        pass
                     _active_cap = None
-                time.sleep(1.0)
+                time.sleep(1.5)
                 continue
 
             if _active_cap is None or not _active_cap.isOpened():
                 _active_cap = cv2.VideoCapture(0, cv2.CAP_DSHOW if os.name == 'nt' else cv2.CAP_ANY)
                 if not _active_cap.isOpened():
                     fail_count += 1
-                    if fail_count % 10 == 1:
-                        logger.warning("Webcam 0 could not be opened by background worker.")
-                    time.sleep(3.0)
+                    if fail_count % 5 == 1:
+                        logger.warning("Webcam 0 could not be opened by background worker (may be in use by browser).")
+                    time.sleep(8.0)
                     continue
 
             ret, frame = _active_cap.read()

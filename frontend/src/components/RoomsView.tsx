@@ -105,33 +105,44 @@ export const RoomsView: React.FC = () => {
   const [detectedPersons, setDetectedPersons] = useState<DetectedPerson[]>([]);
   const [processedFrame, setProcessedFrame] = useState<string | null>(() => selectedRoom.latestFrame || null);
 
-  // 1. Sync live backend data when selectedRoom updates from AppContext state polling (every 3s)
+  const prevFrameRef = useRef<string>('');
+  const prevBoxesJsonRef = useRef<string>('');
+  const prevZonesJsonRef = useRef<string>('');
+
+  // 1. Sync live backend data when selectedRoom updates from AppContext state polling (guarded against infinite loops)
   useEffect(() => {
     if (!isCameraActive) {
       setProcessedFrame('');
       setDetectedPersons([]);
       return;
     }
-    if (selectedRoom?.latestFrame) {
+    if (selectedRoom?.latestFrame && selectedRoom.latestFrame !== prevFrameRef.current) {
+      prevFrameRef.current = selectedRoom.latestFrame;
       setProcessedFrame(selectedRoom.latestFrame);
     }
-    if (selectedRoom?.latestBoxes && selectedRoom.latestBoxes.length > 0) {
-      setDetectedPersons(selectedRoom.latestBoxes.map((box, index) => ({
-        id: `person-${index}`,
-        x: box.x1 * 400,
-        y: box.y1 * 320,
-        width: (box.x2 - box.x1) * 400,
-        height: (box.y2 - box.y1) * 320,
-        confidence: box.confidence,
-        label: `Human ${Math.round(box.confidence * 100)}%`,
-      })));
-    } else if (selectedRoom?.occupancyCount === 0) {
-      setDetectedPersons([]);
+    const currentBoxesJson = JSON.stringify(selectedRoom?.latestBoxes || []);
+    if (currentBoxesJson !== prevBoxesJsonRef.current) {
+      prevBoxesJsonRef.current = currentBoxesJson;
+      if (selectedRoom?.latestBoxes && selectedRoom.latestBoxes.length > 0) {
+        setDetectedPersons(selectedRoom.latestBoxes.map((box, index) => ({
+          id: `person-${index}`,
+          x: box.x1 * 400,
+          y: box.y1 * 320,
+          width: (box.x2 - box.x1) * 400,
+          height: (box.y2 - box.y1) * 320,
+          confidence: box.confidence,
+          label: `Human ${Math.round(box.confidence * 100)}%`,
+        })));
+      } else {
+        setDetectedPersons([]);
+      }
     }
-    if (selectedRoom?.zones && selectedRoom.zones.length > 0) {
+    const currentZonesJson = JSON.stringify(selectedRoom?.zones || []);
+    if (currentZonesJson !== prevZonesJsonRef.current && selectedRoom?.zones && selectedRoom.zones.length > 0) {
+      prevZonesJsonRef.current = currentZonesJson;
       setZones(selectedRoom.zones);
     }
-  }, [selectedRoom?.id, selectedRoom?.latestFrame, selectedRoom?.latestBoxes, selectedRoom?.zones, selectedRoom?.occupancyCount, isCameraActive]);
+  }, [selectedRoom?.id, selectedRoom?.latestFrame, selectedRoom?.occupancyCount, activeLayoutId, isCameraActive]);
 
   // 2. Continuous Backend Frame & YOLO Polling (Runs on mobile and web every 3s)
   useEffect(() => {
@@ -372,8 +383,11 @@ export const RoomsView: React.FC = () => {
     return d;
   };
 
-  // Re-evaluate Occupancy & Device Automations
+  const prevOccupancyMapRef = useRef<string>('');
+
+  // Re-evaluate Occupancy locally for live badge display (safe against recursive loops)
   useEffect(() => {
+    if (detectedPersons.length === 0) return;
     const occupancyMap: { [zoneId: string]: number } = {};
 
     zones.forEach(z => {
@@ -389,25 +403,23 @@ export const RoomsView: React.FC = () => {
       });
     });
 
-    const updatedZones = zones.map(z => {
-      const count = occupancyMap[z.id] || 0;
-      return {
-        ...z,
-        occupantCount: count,
-        isOccupied: count > 0,
-        statusText: count > 0 ? `● ${count} People Detected` : '○ Empty'
-      };
-    });
+    const occStr = JSON.stringify(occupancyMap);
+    if (occStr === prevOccupancyMapRef.current) return;
+    prevOccupancyMapRef.current = occStr;
 
-    const hasDiff = updatedZones.some((uz, i) => uz.occupantCount !== zones[i]?.occupantCount);
-    if (hasDiff) {
-      setZones(updatedZones);
-      if (detectedPersons.length > 0) {
-        setRoomZones(selectedRoomId, updatedZones);
-        syncZoneOccupancyDevices(occupancyMap, updatedZones);
-      }
-    }
-  }, [detectedPersons, zones, selectedRoomId, setRoomZones, syncZoneOccupancyDevices]);
+    setZones(prevZones =>
+      prevZones.map(z => {
+        const count = occupancyMap[z.id] || 0;
+        if (z.occupantCount === count) return z;
+        return {
+          ...z,
+          occupantCount: count,
+          isOccupied: count > 0,
+          statusText: count > 0 ? `● ${count} People Detected` : '○ Empty',
+        };
+      })
+    );
+  }, [detectedPersons]);
 
   // Convert Screen Event to SVG Coordinates
   const getSvgCoordinates = (e: any): Point | null => {
@@ -1597,8 +1609,20 @@ export const RoomsView: React.FC = () => {
         <Text style={styles.autoSyncBadge}>Auto-Sync On</Text>
       </View>
 
-      {zones.map((zone) => {
-        const zoneDevs = devices.filter(d => zone.assignedDeviceIds?.includes(d.id));
+      {zones.map((zone, idx) => {
+        const zNum = zone.num ?? (typeof zone.id === 'number' ? zone.id : parseInt(String(zone.id).replace(/\D/g, ''), 10) || (idx + 1));
+        const zoneDevs = devices.filter(d => {
+          if (zone.assignedDeviceIds && zone.assignedDeviceIds.includes(d.id)) return true;
+          if (d.quadrantNum === zNum) return true;
+          if (Array.isArray(d.quadrants) && d.quadrants.includes(zNum)) return true;
+          if (d.relay === zNum) return true;
+          if (d.zoneId && (d.zoneId === String(zone.id) || d.zoneId === String(zNum))) return true;
+          if (d.category === 'ac') return true;
+          const nameL = (zone.name || '').toLowerCase();
+          if (d.quadrantNum && (nameL.includes(`zone ${d.quadrantNum}`) || nameL.includes(`quadrant ${d.quadrantNum}`))) return true;
+          if (d.relay && (nameL.includes(`zone ${d.relay}`) || nameL.includes(`relay ${d.relay}`))) return true;
+          return false;
+        });
         return (
           <View key={`card-${zone.id}`} style={styles.card}>
             <View style={styles.rowBetween}>

@@ -14,6 +14,7 @@ export interface Zone {
   volumetric?: {
     top?: Point[];
     pillar?: Point[];
+    pillars?: [Point, Point][];
   };
   assignedDeviceIds?: string[];
   occupantCount?: number;
@@ -60,6 +61,32 @@ export interface SensorData {
 
 const API = (import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000').replace(/\/+$/, '');
 
+export const RELAY_PINS: Record<number, number> = {
+  1: 16,
+  2: 17,
+  3: 18,
+  4: 19,
+  5: 23,
+  6: 25,
+  7: 26,
+  8: 27,
+};
+
+export const getRelayPin = (relayNum: number = 1): number => {
+  return RELAY_PINS[relayNum] || (15 + relayNum);
+};
+
+export const MODERN_ZONE_COLORS = [
+  '#00D2FF', // Zone 1: Cyber Cyan
+  '#6366F1', // Zone 2: Indigo Neon
+  '#10B981', // Zone 3: Emerald Mint
+  '#F43F5E', // Zone 4: Coral Rose
+  '#A855F7', // Zone 5: Vivid Purple
+  '#F59E0B', // Zone 6: Amber Gold
+  '#06B6D4', // Zone 7: Electric Teal
+  '#EC4899', // Zone 8: Hot Pink
+];
+
 const DEFAULT_ROOM_LAYOUTS: RoomLayout[] = [
   {
     id: 'layout-1',
@@ -68,10 +95,42 @@ const DEFAULT_ROOM_LAYOUTS: RoomLayout[] = [
     description: 'Standard 4-Quadrant setup covering Classroom 101 with perspective corners',
     isDefault: true,
     zones: [
-      { id: '1', num: 1, name: 'Zone 1', color: '#FFB547', relay: 1, pin: 16, points: [[0.06, 0.14], [0.48, 0.17], [0.48, 0.52], [0.09, 0.58]], volumetric: { top: [[0.06, 0.08], [0.48, 0.10], [0.48, 0.17], [0.06, 0.14]], pillar: [[0.06, 0.08], [0.06, 0.58]] } },
-      { id: '2', num: 2, name: 'Zone 2', color: '#3B82F6', relay: 2, pin: 17, points: [[0.48, 0.17], [0.94, 0.14], [0.91, 0.58], [0.48, 0.52]], volumetric: { top: [[0.48, 0.10], [0.94, 0.08], [0.94, 0.14], [0.48, 0.17]], pillar: [[0.94, 0.08], [0.91, 0.58]] } },
-      { id: '3', num: 3, name: 'Zone 3', color: '#00E676', relay: 3, pin: 18, points: [[0.09, 0.58], [0.48, 0.52], [0.48, 0.94], [0.18, 0.94]], volumetric: { top: [[0.09, 0.54], [0.48, 0.49], [0.48, 0.52], [0.09, 0.58]], pillar: [[0.18, 0.58], [0.18, 0.94]] } },
-      { id: '4', num: 4, name: 'Zone 4', color: '#EF4444', relay: 4, pin: 19, points: [[0.48, 0.52], [0.91, 0.58], [0.82, 0.94], [0.48, 0.94]], volumetric: { top: [[0.48, 0.49], [0.91, 0.54], [0.91, 0.58], [0.48, 0.52]], pillar: [[0.82, 0.58], [0.82, 0.94]] } },
+      {
+        id: '1', num: 1, name: 'Zone 1 (Front-Left)', color: '#00D2FF', relay: 1, pin: 16,
+        points: [[0.0, 0.0], [0.5, 0.0], [0.5, 0.5], [0.0, 0.5]],
+        volumetric: {
+          top: [[0.0, 0.0], [0.5, 0.0], [0.5, 0.25], [0.0, 0.25]],
+          pillar: [[0.0, 0.5], [0.0, 0.25]],
+          pillars: [[[0.0, 0.0], [0.0, 0.0]], [[0.5, 0.0], [0.5, 0.0]], [[0.5, 0.5], [0.5, 0.25]], [[0.0, 0.5], [0.0, 0.25]]]
+        }
+      },
+      {
+        id: '2', num: 2, name: 'Zone 2 (Front-Right)', color: '#6366F1', relay: 2, pin: 17,
+        points: [[0.5, 0.0], [1.0, 0.0], [1.0, 0.5], [0.5, 0.5]],
+        volumetric: {
+          top: [[0.5, 0.0], [1.0, 0.0], [1.0, 0.25], [0.5, 0.25]],
+          pillar: [[1.0, 0.5], [1.0, 0.25]],
+          pillars: [[[0.5, 0.0], [0.5, 0.0]], [[1.0, 0.0], [1.0, 0.0]], [[1.0, 0.5], [1.0, 0.25]], [[0.5, 0.5], [0.5, 0.25]]]
+        }
+      },
+      {
+        id: '3', num: 3, name: 'Zone 3 (Back-Left)', color: '#10B981', relay: 3, pin: 18,
+        points: [[0.0, 0.5], [0.5, 0.5], [0.5, 1.0], [0.0, 1.0]],
+        volumetric: {
+          top: [[0.0, 0.25], [0.5, 0.25], [0.5, 0.65], [0.0, 0.65]],
+          pillar: [[0.0, 1.0], [0.0, 0.65]],
+          pillars: [[[0.0, 0.5], [0.0, 0.25]], [[0.5, 0.5], [0.5, 0.25]], [[0.5, 1.0], [0.5, 0.65]], [[0.0, 1.0], [0.0, 0.65]]]
+        }
+      },
+      {
+        id: '4', num: 4, name: 'Zone 4 (Back-Right)', color: '#F43F5E', relay: 4, pin: 19,
+        points: [[0.5, 0.5], [1.0, 0.5], [1.0, 1.0], [0.5, 1.0]],
+        volumetric: {
+          top: [[0.5, 0.25], [1.0, 0.25], [1.0, 0.65], [0.5, 0.65]],
+          pillar: [[1.0, 1.0], [1.0, 0.65]],
+          pillars: [[[0.5, 0.5], [0.5, 0.25]], [[1.0, 0.5], [1.0, 0.25]], [[1.0, 1.0], [1.0, 0.65]], [[0.5, 1.0], [0.5, 0.65]]]
+        }
+      },
     ],
   },
 ];
@@ -99,6 +158,7 @@ export default function App() {
   // Camera & Detection State
   const videoRef = useRef<HTMLVideoElement>(null);
   const layoutVideoRef = useRef<HTMLVideoElement>(null);
+  const globalVideoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const detectionInFlight = useRef(false);
 
@@ -118,7 +178,7 @@ export default function App() {
   const [isFrameFrozen, setIsFrameFrozen] = useState(false);
   const [frozenFrameUrl, setFrozenFrameUrl] = useState<string | null>(null);
   const [selectedZoneId, setSelectedZoneId] = useState<string>('1');
-  const [draggedPointIndex, setDraggedPointIndex] = useState<{ zoneId: string; pointIdx: number } | null>(null);
+  const [draggedPointIndex, setDraggedPointIndex] = useState<{ zoneId: string; pointIdx: number; plane?: 'floor' | 'top' } | null>(null);
   const [isSavingLayout, setIsSavingLayout] = useState(false);
   const [saveLayoutNotice, setSaveLayoutNotice] = useState<string | null>(null);
 
@@ -149,7 +209,10 @@ export default function App() {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
           const hasOldDefaults = parsed.some((l: any) => ['layout-2', 'layout-3', 'layout-4'].includes(l.id));
-          if (!hasOldDefaults && parsed[0]?.id === 'layout-1') {
+          const hasOldInsets = parsed.some((l: any) =>
+            l.zones?.some((z: any) => z.id === '1' && (z.points?.[0]?.[0] > 0.03 || z.points?.[0]?.[1] > 0.03))
+          );
+          if (!hasOldDefaults && !hasOldInsets) {
             return parsed;
           }
         }
@@ -179,8 +242,35 @@ export default function App() {
   const [editorViewMode, setEditorViewMode] = useState<'3d' | 'top'>('3d');
   const [activeEditorTool, setActiveEditorTool] = useState<'draw' | 'resize' | 'delete'>('draw');
 
-  // Unified Dashboard Sub-Tab: 'overview' | 'analytics' | 'settings'
-  const [dashboardSubTab, setDashboardSubTab] = useState<'overview' | 'analytics' | 'settings'>('overview');
+  // Unified Dashboard Sub-Tab: 'overview' | 'analytics' | 'settings' (or view all on single page)
+  const [dashboardSubTab, setDashboardSubTab] = useState<'all' | 'overview' | 'analytics' | 'settings'>('all');
+
+  // Dynamic Energy Analytics & Bill Prediction State
+  const [tariffRate, setTariffRate] = useState<number>(() => {
+    try {
+      const v = localStorage.getItem('seros_tariff_rate');
+      if (v) return parseFloat(v);
+    } catch {}
+    return 5.50;
+  });
+  const [fixedMonthlyCharges, setFixedMonthlyCharges] = useState<number>(() => {
+    try {
+      const v = localStorage.getItem('seros_fixed_charges');
+      if (v) return parseFloat(v);
+    } catch {}
+    return 1350;
+  });
+  const [dutyRatePct, setDutyRatePct] = useState<number>(() => {
+    try {
+      const v = localStorage.getItem('seros_duty_pct');
+      if (v) return parseFloat(v);
+    } catch {}
+    return 8;
+  });
+  const [projectedKwh, setProjectedKwh] = useState<number>(250);
+  const [energyTimeframe, setEnergyTimeframe] = useState<'today' | '7days' | 'month'>('today');
+  const [selectedDayIndex, setSelectedDayIndex] = useState<number>(2); // Default to Wed (Peak ₹64)
+  const [customTariffOpen, setCustomTariffOpen] = useState(false);
 
   // Layout Renaming State
   const [renamingLayoutId, setRenamingLayoutId] = useState<string | null>(null);
@@ -206,9 +296,11 @@ export default function App() {
 
   // AI Auto-Mapping Modal State
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
+  const [aiNumZones, setAiNumZones] = useState(4);
   const [aiNumLights, setAiNumLights] = useState(4);
   const [aiNumFans, setAiNumFans] = useState(2);
   const [aiNumAcs, setAiNumAcs] = useState(1);
+  const [aiEquipmentPlacement, setAiEquipmentPlacement] = useState<'quadrant' | 'perimeter' | 'front_loaded' | 'uniform'>('quadrant');
   const [isAiMapping, setIsAiMapping] = useState(false);
   const [aiNotice, setAiNotice] = useState<string | null>(null);
 
@@ -221,7 +313,7 @@ export default function App() {
   const isFrameFrozenRef = useRef(isFrameFrozen);
   isFrameFrozenRef.current = isFrameFrozen;
   const isDraggingRef = useRef(false);
-  const draggedPointRef = useRef<{ zoneId: string; pointIdx: number } | null>(null);
+  const draggedPointRef = useRef<{ zoneId: string; pointIdx: number; plane?: 'floor' | 'top' } | null>(null);
   const layoutsRef = useRef<RoomLayout[]>(layouts);
   layoutsRef.current = layouts;
   const svgRef = useRef<SVGSVGElement | null>(null);
@@ -377,6 +469,13 @@ export default function App() {
 
   // 3. Attach mediaStream to video elements when active
   useEffect(() => {
+    if (globalVideoRef.current && mediaStream) {
+      globalVideoRef.current.srcObject = mediaStream;
+      globalVideoRef.current.play().catch(() => {});
+    }
+  }, [mediaStream]);
+
+  useEffect(() => {
     if (videoRef.current && mediaStream && activeTab === 'rooms') {
       videoRef.current.srcObject = mediaStream;
       videoRef.current.play().catch(() => {});
@@ -390,7 +489,7 @@ export default function App() {
     }
   }, [mediaStream, activeTab, isFrameFrozen]);
 
-  // 4. YOLO detection loop from whichever video feed is active
+  // 4. YOLO detection loop: continuous real-time streaming from persistent video feed
   useEffect(() => {
     if (!isCameraOn) {
       setBoxes([]);
@@ -399,16 +498,18 @@ export default function App() {
 
     const timer = setInterval(() => {
       if (detectionInFlight.current || !isCameraOn) return;
-      const activeVideo = activeTab === 'layouts' ? layoutVideoRef.current : videoRef.current;
+      const vid = (globalVideoRef.current && globalVideoRef.current.readyState >= 2)
+        ? globalVideoRef.current
+        : (activeTab === 'layouts' ? layoutVideoRef.current : videoRef.current);
       const canvas = canvasRef.current;
-      if (!activeVideo || !canvas || activeVideo.readyState < 2) return;
+      if (!vid || !canvas || vid.readyState < 2) return;
 
       canvas.width = 640;
       canvas.height = 360;
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
-      ctx.drawImage(activeVideo, 0, 0, 640, 360);
+      ctx.drawImage(vid, 0, 0, 640, 360);
       const dataUrl = canvas.toDataURL('image/jpeg', 0.6);
 
       detectionInFlight.current = true;
@@ -429,7 +530,7 @@ export default function App() {
         .finally(() => {
           detectionInFlight.current = false;
         });
-    }, 2500);
+    }, 1800);
 
     return () => clearInterval(timer);
   }, [isCameraOn, activeTab]);
@@ -506,15 +607,231 @@ export default function App() {
     }
   }, []);
 
-  // 6. Interactive zone point drag in Layout Editor
+  // 6. Interactive zone point drag in Layout Editor with magnetic snapping (Floor and Ceiling planes)
+  const startDraggingPoint = (
+    e: any,
+    zoneId: string,
+    pointIdx: number,
+    plane: 'floor' | 'top' = 'floor'
+  ) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setSelectedZoneId(zoneId);
+
+    const pointerId = e.pointerId;
+    const targetEl = e.currentTarget;
+    if (pointerId !== undefined && targetEl?.setPointerCapture) {
+      try {
+        targetEl.setPointerCapture(pointerId);
+      } catch {}
+    }
+
+    isDraggingRef.current = true;
+    draggedPointRef.current = { zoneId, pointIdx, plane };
+    setDraggedPointIndex({ zoneId, pointIdx, plane });
+
+    const targetLayoutId = currentLayout.id;
+
+    const onWindowPointerMove = (moveEvt: PointerEvent) => {
+      if (!svgRef.current) return;
+      const rect = svgRef.current.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return;
+
+      let nx = Math.max(0.0, Math.min(1.0, (moveEvt.clientX - rect.left) / rect.width));
+      let ny = Math.max(0.0, Math.min(1.0, (moveEvt.clientY - rect.top) / rect.height));
+
+      // Magnetic Edge Snapping: Snap to outer camera boundary [0.0, 1.0] within 2.5%
+      if (nx < 0.025) nx = 0.0;
+      else if (nx > 0.975) nx = 1.0;
+
+      if (ny < 0.025) ny = 0.0;
+      else if (ny > 0.975) ny = 1.0;
+
+      // Magnetic Centerline Snapping: Snap to center [0.5] within 2%
+      if (Math.abs(nx - 0.5) < 0.02) nx = 0.5;
+      if (Math.abs(ny - 0.5) < 0.02) ny = 0.5;
+
+      const targetL = layoutsRef.current.find(l => l.id === targetLayoutId) || currentLayout;
+
+      // Magnetic Adjoining Vertex Snapping
+      if (plane === 'floor') {
+        for (const otherZone of targetL.zones) {
+          for (let ptI = 0; ptI < otherZone.points.length; ptI++) {
+            if (otherZone.id === zoneId && ptI === pointIdx) continue;
+            const [ox, oy] = otherZone.points[ptI];
+            if (Math.hypot(nx - ox, ny - oy) < 0.025) {
+              nx = ox;
+              ny = oy;
+              break;
+            }
+          }
+        }
+      }
+
+      const updatedPt: Point = [Number(nx.toFixed(3)), Number(ny.toFixed(3))];
+
+      setLayouts(prev => {
+        const nextL = prev.map(l => {
+          if (l.id !== targetLayoutId) return l;
+          return {
+            ...l,
+            zones: l.zones.map(zoneObj => {
+              if (zoneObj.id !== zoneId) return zoneObj;
+
+              if (plane === 'top') {
+                // Dragging a 3D Ceiling Node directly
+                let currentTop: Point[] = (zoneObj.volumetric?.top && zoneObj.volumetric.top.length === zoneObj.points.length)
+                  ? [...zoneObj.volumetric.top]
+                  : zoneObj.points.map(([fx, fy]) => {
+                      const wallH = 0.10 + 0.30 * Math.max(0, Math.min(1, fy));
+                      return [fx, Math.max(0, fy - wallH)] as Point;
+                    });
+                currentTop[pointIdx] = updatedPt;
+                const newPillars: [Point, Point][] = zoneObj.points.map((fp, i) => [fp, currentTop[i]]);
+                return {
+                  ...zoneObj,
+                  volumetric: {
+                    ...zoneObj.volumetric,
+                    top: currentTop,
+                    pillars: newPillars,
+                    pillar: newPillars[0] || []
+                  }
+                };
+              } else {
+                // Dragging a Floor Base Node:
+                // Floor point moves to updatedPt, and corresponding ceiling point moves in lockstep
+                const newPoints = [...zoneObj.points] as Point[];
+                newPoints[pointIdx] = updatedPt;
+
+                let newTop: Point[] = (zoneObj.volumetric?.top && zoneObj.volumetric.top.length === zoneObj.points.length)
+                  ? [...zoneObj.volumetric.top]
+                  : zoneObj.points.map(([fx, fy]) => {
+                      const wallH = 0.10 + 0.30 * Math.max(0, Math.min(1, fy));
+                      return [fx, Math.max(0, fy - wallH)] as Point;
+                    });
+
+                const wallH = 0.10 + 0.30 * Math.max(0, Math.min(1, updatedPt[1]));
+                newTop[pointIdx] = [
+                  Number(updatedPt[0].toFixed(3)),
+                  Number(Math.max(0, updatedPt[1] - wallH).toFixed(3))
+                ];
+
+                const newPillars: [Point, Point][] = newPoints.map((fp, i) => [fp, newTop[i]]);
+
+                return {
+                  ...zoneObj,
+                  points: newPoints,
+                  volumetric: {
+                    ...zoneObj.volumetric,
+                    top: newTop,
+                    pillars: newPillars,
+                    pillar: newPillars[0] || []
+                  }
+                };
+              }
+            }),
+          };
+        });
+        layoutsRef.current = nextL;
+        return nextL;
+      });
+    };
+
+    const onWindowPointerUp = () => {
+      if (pointerId !== undefined && targetEl?.releasePointerCapture) {
+        try {
+          targetEl.releasePointerCapture(pointerId);
+        } catch {}
+      }
+      window.removeEventListener('pointermove', onWindowPointerMove);
+      window.removeEventListener('pointerup', onWindowPointerUp);
+      window.removeEventListener('pointercancel', onWindowPointerUp);
+      isDraggingRef.current = false;
+      draggedPointRef.current = null;
+      setDraggedPointIndex(null);
+
+      const targetL = layoutsRef.current.find(l => l.id === targetLayoutId) || currentLayout;
+      if (targetL) {
+        void saveLayoutToBackend(targetL);
+      }
+    };
+
+    window.addEventListener('pointermove', onWindowPointerMove);
+    window.addEventListener('pointerup', onWindowPointerUp);
+    window.addEventListener('pointercancel', onWindowPointerUp);
+  };
+
+  // Align 3D walls & ceiling nodes of a zone directly above its floor nodes
+  const handleAlignZonePillars = (zoneId: string) => {
+    const targetL = layoutsRef.current.find(l => l.id === currentLayout.id) || currentLayout;
+    const updatedZones = targetL.zones.map(z => {
+      if (z.id !== zoneId) return z;
+      const alignedTop: Point[] = z.points.map(([fx, fy]) => {
+        const wallH = 0.10 + 0.30 * Math.max(0, Math.min(1, fy));
+        return [fx, Number(Math.max(0, fy - wallH).toFixed(3))];
+      });
+      const alignedPillars: [Point, Point][] = z.points.map((fp, i) => [fp, alignedTop[i]]);
+      return {
+        ...z,
+        volumetric: {
+          ...z.volumetric,
+          top: alignedTop,
+          pillars: alignedPillars,
+          pillar: alignedPillars[0] || []
+        }
+      };
+    });
+    const updatedLayout = { ...targetL, zones: updatedZones };
+    setLayouts(prev => {
+      const nextL = prev.map(l => l.id === targetL.id ? updatedLayout : l);
+      layoutsRef.current = nextL;
+      return nextL;
+    });
+    void saveLayoutToBackend(updatedLayout);
+  };
+
+  // Align all zones' 3D walls across the room
+  const handleAlignAllZonesPillars = () => {
+    const targetL = layoutsRef.current.find(l => l.id === currentLayout.id) || currentLayout;
+    const updatedZones = targetL.zones.map(z => {
+      const alignedTop: Point[] = z.points.map(([fx, fy]) => {
+        const wallH = 0.10 + 0.30 * Math.max(0, Math.min(1, fy));
+        return [fx, Number(Math.max(0, fy - wallH).toFixed(3))];
+      });
+      const alignedPillars: [Point, Point][] = z.points.map((fp, i) => [fp, alignedTop[i]]);
+      return {
+        ...z,
+        volumetric: {
+          ...z.volumetric,
+          top: alignedTop,
+          pillars: alignedPillars,
+          pillar: alignedPillars[0] || []
+        }
+      };
+    });
+    const updatedLayout = { ...targetL, zones: updatedZones };
+    setLayouts(prev => {
+      const nextL = prev.map(l => l.id === targetL.id ? updatedLayout : l);
+      layoutsRef.current = nextL;
+      return nextL;
+    });
+    void saveLayoutToBackend(updatedLayout);
+  };
+
   const handleSvgMouseMove = (e: any) => {
     const dragTarget = draggedPointRef.current;
     if (!dragTarget || !svgRef.current) return;
     isDraggingRef.current = true;
     const rect = svgRef.current.getBoundingClientRect();
     if (rect.width <= 0 || rect.height <= 0) return;
-    const nx = Math.max(0.01, Math.min(0.99, (e.clientX - rect.left) / rect.width));
-    const ny = Math.max(0.01, Math.min(0.99, (e.clientY - rect.top) / rect.height));
+    let nx = Math.max(0.0, Math.min(1.0, (e.clientX - rect.left) / rect.width));
+    let ny = Math.max(0.0, Math.min(1.0, (e.clientY - rect.top) / rect.height));
+    if (nx < 0.025) nx = 0.0;
+    else if (nx > 0.975) nx = 1.0;
+    if (ny < 0.025) ny = 0.0;
+    else if (ny > 0.975) ny = 1.0;
+    if (Math.abs(nx - 0.5) < 0.02) nx = 0.5;
+    if (Math.abs(ny - 0.5) < 0.02) ny = 0.5;
     const updatedPt: Point = [Number(nx.toFixed(3)), Number(ny.toFixed(3))];
 
     setLayouts(prev => {
@@ -524,9 +841,50 @@ export default function App() {
           ...l,
           zones: l.zones.map(z => {
             if (z.id !== dragTarget.zoneId) return z;
-            const newPoints = [...z.points] as Point[];
-            newPoints[dragTarget.pointIdx] = updatedPt;
-            return { ...z, points: newPoints };
+            if (dragTarget.plane === 'top') {
+              let currentTop: Point[] = (z.volumetric?.top && z.volumetric.top.length === z.points.length)
+                ? [...z.volumetric.top]
+                : z.points.map(([fx, fy]) => {
+                    const wallH = 0.10 + 0.30 * Math.max(0, Math.min(1, fy));
+                    return [fx, Math.max(0, fy - wallH)] as Point;
+                  });
+              currentTop[dragTarget.pointIdx] = updatedPt;
+              const newPillars: [Point, Point][] = z.points.map((fp, i) => [fp, currentTop[i]]);
+              return {
+                ...z,
+                volumetric: {
+                  ...z.volumetric,
+                  top: currentTop,
+                  pillars: newPillars,
+                  pillar: newPillars[0] || []
+                }
+              };
+            } else {
+              const newPoints = [...z.points] as Point[];
+              newPoints[dragTarget.pointIdx] = updatedPt;
+              let newTop: Point[] = (z.volumetric?.top && z.volumetric.top.length === z.points.length)
+                ? [...z.volumetric.top]
+                : z.points.map(([fx, fy]) => {
+                    const wallH = 0.10 + 0.30 * Math.max(0, Math.min(1, fy));
+                    return [fx, Math.max(0, fy - wallH)] as Point;
+                  });
+              const wallH = 0.10 + 0.30 * Math.max(0, Math.min(1, updatedPt[1]));
+              newTop[dragTarget.pointIdx] = [
+                Number(updatedPt[0].toFixed(3)),
+                Number(Math.max(0, updatedPt[1] - wallH).toFixed(3))
+              ];
+              const newPillars: [Point, Point][] = newPoints.map((fp, i) => [fp, newTop[i]]);
+              return {
+                ...z,
+                points: newPoints,
+                volumetric: {
+                  ...z.volumetric,
+                  top: newTop,
+                  pillars: newPillars,
+                  pillar: newPillars[0] || []
+                }
+              };
+            }
           }),
         };
       });
@@ -593,7 +951,7 @@ export default function App() {
   const handleAddZoneToLayout = () => {
     const targetL = layoutsRef.current.find(l => l.id === activeLayoutId) || currentLayout;
     const newNum = targetL.zones.length + 1;
-    const colors = ['#FFB547', '#3B82F6', '#00E676', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4', '#F59E0B'];
+    const colors = MODERN_ZONE_COLORS;
     const newColor = colors[(newNum - 1) % colors.length];
     const newZone: Zone = {
       id: `zone-${Date.now()}`,
@@ -601,7 +959,7 @@ export default function App() {
       name: `Zone ${newNum}`,
       color: newColor,
       relay: newNum,
-      pin: 15 + newNum,
+      pin: getRelayPin(newNum),
       points: [
         [0.2, 0.3],
         [0.5, 0.3],
@@ -642,9 +1000,28 @@ export default function App() {
     const targetL = layoutsRef.current.find(l => l.id === currentLayout.id) || currentLayout;
     const updatedZones = targetL.zones.map(z => {
       if (z.id !== zoneId) return z;
+      const roundedPoint: Point = [Number(newPoint[0].toFixed(3)), Number(newPoint[1].toFixed(3))];
       const newPoints = [...z.points];
-      newPoints.splice(insertIndex, 0, [Number(newPoint[0].toFixed(3)), Number(newPoint[1].toFixed(3))]);
-      return { ...z, points: newPoints };
+      newPoints.splice(insertIndex, 0, roundedPoint);
+
+      const wallH = 0.10 + 0.30 * Math.max(0, Math.min(1, roundedPoint[1]));
+      const newTopPt: Point = [roundedPoint[0], Number(Math.max(0, roundedPoint[1] - wallH).toFixed(3))];
+      let newTop: Point[] = (z.volumetric?.top && z.volumetric.top.length === z.points.length)
+        ? [...z.volumetric.top]
+        : z.points.map(([fx, fy]) => [fx, Math.max(0, fy - (0.10 + 0.30 * fy))]);
+      newTop.splice(insertIndex, 0, newTopPt);
+      const newPillars: [Point, Point][] = newPoints.map((fp, i) => [fp, newTop[i] || fp]);
+
+      return {
+        ...z,
+        points: newPoints,
+        volumetric: {
+          ...z.volumetric,
+          top: newTop,
+          pillars: newPillars,
+          pillar: newPillars[0] || []
+        }
+      };
     });
     const updatedLayout = { ...targetL, zones: updatedZones };
     setLayouts(prev => {
@@ -663,7 +1040,21 @@ export default function App() {
     const updatedZones = targetL.zones.map(z => {
       if (z.id !== zoneId) return z;
       const newPoints = z.points.filter((_, idx) => idx !== pointIndex);
-      return { ...z, points: newPoints };
+      let newTop: Point[] = (z.volumetric?.top && z.volumetric.top.length === z.points.length)
+        ? z.volumetric.top.filter((_, idx) => idx !== pointIndex)
+        : newPoints.map(([fx, fy]) => [fx, Math.max(0, fy - (0.10 + 0.30 * fy))]);
+      const newPillars: [Point, Point][] = newPoints.map((fp, i) => [fp, newTop[i] || fp]);
+
+      return {
+        ...z,
+        points: newPoints,
+        volumetric: {
+          ...z.volumetric,
+          top: newTop,
+          pillars: newPillars,
+          pillar: newPillars[0] || []
+        }
+      };
     });
     const updatedLayout = { ...targetL, zones: updatedZones };
     setLayouts(prev => {
@@ -992,10 +1383,23 @@ export default function App() {
     setIsAiMapping(true);
     setAiNotice(null);
 
-    const canvas = canvasRef.current;
     let frameData: string | undefined;
-    if (canvas) {
-      frameData = canvas.toDataURL('image/jpeg', 0.7);
+    try {
+      const activeVideo = layoutVideoRef.current || videoRef.current;
+      if (activeVideo && activeVideo.videoWidth > 0 && activeVideo.videoHeight > 0) {
+        const offCanvas = document.createElement('canvas');
+        offCanvas.width = activeVideo.videoWidth;
+        offCanvas.height = activeVideo.videoHeight;
+        const ctx = offCanvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(activeVideo, 0, 0, offCanvas.width, offCanvas.height);
+          frameData = offCanvas.toDataURL('image/jpeg', 0.85);
+        }
+      } else if (canvasRef.current) {
+        frameData = canvasRef.current.toDataURL('image/jpeg', 0.85);
+      }
+    } catch (e) {
+      console.warn('Could not capture frame for AI auto-map:', e);
     }
 
     try {
@@ -1003,26 +1407,37 @@ export default function App() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          quadrants: aiNumZones,
+          num_zones: aiNumZones,
           lights: aiNumLights,
+          num_lights: aiNumLights,
           fans: aiNumFans,
+          num_fans: aiNumFans,
           acs: aiNumAcs,
+          num_acs: aiNumAcs,
+          equipment_placement: aiEquipmentPlacement,
+          room_name: 'Classroom 101',
           frame: frameData,
         }),
       });
 
       if (res.ok) {
         const data = await res.json();
-        setAiNotice(`AI Generated: ${data.layout_name} (${data.zones?.length} zones synthesized)`);
+        const lId = data.layout_id || data.layout?.id;
+        const lName = data.layout_name || data.layout?.name || 'Synthesized Layout';
+        const zCount = data.zones?.length || data.layout?.zones?.length || aiNumZones;
+        setAiNotice(`AI Generated: ${lName} (${zCount} 3D zones synthesized)`);
         await loadAllData();
-        if (data.layout_id) {
-          setActiveLayoutId(data.layout_id);
+        if (lId) {
+          setActiveLayoutId(lId);
         }
         setTimeout(() => {
           setIsAiModalOpen(false);
           setAiNotice(null);
         }, 1200);
       } else {
-        setAiNotice('Generated smart fallback perspective grid.');
+        const errData = await res.json().catch(() => ({}));
+        setAiNotice(`Auto-map notice: ${errData.error || 'Synthesized standard 3D perspective layout'}`);
       }
     } catch (err: any) {
       setAiNotice(`Auto-map applied perspective layout: ${err.message || 'Complete'}`);
@@ -1039,8 +1454,68 @@ export default function App() {
   // Selected layout object for Add Devices view
   const selectedAddDeviceLayout = layouts.find(l => l.id === addDeviceLayoutId) || currentLayout;
 
+  // Real Dynamic Energy Calculations
+  const activeWattage = devices.filter(d => d.status === 'ON').reduce((sum, d) => sum + (d.powerWatts || 40), 0);
+  const totalInstalledWattage = devices.reduce((sum, d) => sum + (d.powerWatts || 40), 0);
+  // Today's estimated operating hours (6.5 hrs classroom active schedule)
+  const todayActiveKwh = Number(((activeWattage * 6.5) / 1000).toFixed(2));
+  const unzonedBaselineKwh = Number(((totalInstalledWattage * 8.0) / 1000).toFixed(2));
+  const todayCost = Math.max(12, Math.round(todayActiveKwh * tariffRate));
+  const todaySavedCost = Math.max(8, Math.round((unzonedBaselineKwh - todayActiveKwh) * tariffRate));
+
+  // Dynamic Bill Projections based on user selected kWh
+  const projectedEnergyCost = Math.round(projectedKwh * tariffRate);
+  const projectedDutyCost = Math.round(projectedEnergyCost * (dutyRatePct / 100));
+  const projectedTotalBill = projectedEnergyCost + fixedMonthlyCharges + projectedDutyCost;
+
+  // Statement Downloader
+  const handleDownloadBillStatement = () => {
+    const content = `================================================
+S.E.R.O.S. SMART ENERGY & ROOM OPERATING SYSTEM
+Classroom 101 • Plain-Language Monthly Bill Statement
+Generated: ${new Date().toLocaleDateString()}
+================================================
+
+PROJECTED SUMMARY
+Estimated Total Monthly Bill: ₹${projectedTotalBill.toLocaleString('en-IN')}
+Projected Monthly Units: ${projectedKwh} kWh
+Electricity Tariff Rate: ₹${tariffRate.toFixed(2)} / kWh
+Next Official Bill Cycle: 12 days
+
+ITEMIZED COST BREAKDOWN
+1. Active Energy Consumption: ₹${projectedEnergyCost.toLocaleString('en-IN')}
+   (${projectedKwh} kWh @ ₹${tariffRate.toFixed(2)}/unit)
+2. Standard Fixed Grid Charges: ₹${fixedMonthlyCharges.toLocaleString('en-IN')}
+3. Government Electricity Duty (${dutyRatePct}%): ₹${projectedDutyCost.toLocaleString('en-IN')}
+------------------------------------------------
+TOTAL PROJECTED PAYABLE: ₹${projectedTotalBill.toLocaleString('en-IN')}
+
+ENERGY CONSERVATION & AUTOMATION METRICS
+- AI Spatial Quadrant Automation: ACTIVE
+- Power Conserved vs Baseline: ${sensor.energy_saving_percent}%
+- Estimated Monthly Savings via S.E.R.O.S.: ~₹${Math.round(projectedTotalBill * 0.22).toLocaleString('en-IN')}
+- Live Room Telemetry: ${sensor.temperature.toFixed(1)}°C | ${sensor.humidity.toFixed(0)}% RH
+
+SMART SAVING TIP:
+Turning off ACs 15 mins before leaving saves approximately ~₹320/month without warming up rooms!
+================================================`;
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `SEROS_Bill_Statement_${new Date().toISOString().slice(0, 10)}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="seros-desktop-root">
+      {/* Persistent Offscreen Video for YOLO Computer Vision Streaming */}
+      <video ref={globalVideoRef} muted playsInline style={{ display: 'none' }} aria-hidden="true" />
+      <canvas ref={canvasRef} style={{ display: 'none' }} aria-hidden="true" />
+
       {/* 1. TOP NAVIGATION BAR */}
       {/* Strictly Brand logo, Home, Rooms, Layouts, Add Devices, Analytics, Devices, Settings */}
       <header className="seros-navbar">
@@ -1213,92 +1688,180 @@ export default function App() {
                         className="perspective-3d-svg"
                         aria-label="3D Perspective Room Zones"
                       >
-                        {/* Room Perspective Boundary Outline (Trapezoidal Back Wall + Floors) */}
-                        <polygon
-                          points="0.06,0.14 0.94,0.14 0.82,0.94 0.18,0.94"
-                          fill="none"
-                          stroke="rgba(255, 255, 255, 0.45)"
-                          strokeWidth="0.003"
-                          strokeDasharray="0.01 0.008"
-                        />
-                        {/* Perspective Ceiling Rail Lines */}
-                        <line x1="0.06" y1="0.14" x2="0.02" y2="0.02" stroke="rgba(255, 255, 255, 0.35)" strokeWidth="0.003" />
-                        <line x1="0.94" y1="0.14" x2="0.98" y2="0.02" stroke="rgba(255, 255, 255, 0.35)" strokeWidth="0.003" />
-                        <line x1="0.06" y1="0.14" x2="0.18" y2="0.94" stroke="rgba(255, 255, 255, 0.25)" strokeWidth="0.002" strokeDasharray="0.008 0.006" />
-                        <line x1="0.94" y1="0.14" x2="0.82" y2="0.94" stroke="rgba(255, 255, 255, 0.25)" strokeWidth="0.002" strokeDasharray="0.008 0.006" />
-
-                        {/* Render 3D Perspective Volumetric Zones */}
+                        {/* Render 3D Perspective Volumetric Zones with 3D Walls (Matching User Design) */}
                         {currentLayout.zones.map((zone) => {
                           const count = getZoneOccupants(zone);
                           const isOccupied = count > 0;
-                          const pointsStr = zone.points.map(p => p.join(',')).join(' ');
+                          const floorPts = zone.points;
+
+                          // Compute 3D top ceiling points
+                          let topPts: Point[] = [];
+                          if (zone.volumetric?.top && zone.volumetric.top.length === floorPts.length) {
+                            topPts = zone.volumetric.top;
+                          } else {
+                            topPts = floorPts.map(([fx, fy]) => {
+                              const wallH = 0.10 + 0.32 * Math.max(0, Math.min(1, fy));
+                              return [Number(fx.toFixed(3)), Math.max(0.02, Number((fy - wallH).toFixed(3)))];
+                            });
+                          }
+
+                          // 4 Vertical Pillars
+                          const pillars: [Point, Point][] = floorPts.map((fp, i) => [fp, topPts[i]]);
+
+                          // 4 Vertical Wall Facets
+                          const wallFacets: Point[][] = [];
+                          for (let i = 0; i < floorPts.length; i++) {
+                            const next = (i + 1) % floorPts.length;
+                            wallFacets.push([floorPts[i], floorPts[next], topPts[next], topPts[i]]);
+                          }
+
+                          // 3D Centroid for floating badge
+                          const allX = [...floorPts.map(p => p[0]), ...topPts.map(p => p[0])];
+                          const allY = [...floorPts.map(p => p[1]), ...topPts.map(p => p[1])];
+                          const cx = allX.reduce((a, b) => a + b, 0) / allX.length;
+                          const cy = allY.reduce((a, b) => a + b, 0) / allY.length;
 
                           return (
                             <g key={zone.id} className="zone-3d-group">
-                              {/* Zone Floor Base Polygon */}
+                              {/* 3D Vertical Wall Facets with Translucent Fill */}
+                              {wallFacets.map((facet, fIdx) => (
+                                <polygon
+                                  key={`wall-${fIdx}`}
+                                  points={facet.map(p => p.join(',')).join(' ')}
+                                  fill={zone.color}
+                                  fillOpacity={isOccupied ? 0.32 : 0.20}
+                                  stroke={zone.color}
+                                  strokeWidth="0.0035"
+                                  strokeLinejoin="round"
+                                />
+                              ))}
+
+                              {/* Top Volumetric Ceiling Roof Wireframe */}
                               <polygon
-                                points={pointsStr}
+                                points={topPts.map(p => p.join(',')).join(' ')}
                                 fill={zone.color}
-                                fillOpacity={isOccupied ? 0.38 : 0.22}
+                                fillOpacity={isOccupied ? 0.26 : 0.14}
                                 stroke={zone.color}
-                                strokeWidth={isOccupied ? 0.006 : 0.0035}
+                                strokeWidth="0.0045"
                                 strokeLinejoin="round"
                               />
 
-                              {/* Top Volumetric Roof Wireframe if available */}
-                              {zone.volumetric?.top && (
-                                <polygon
-                                  points={zone.volumetric.top.map(p => p.join(',')).join(' ')}
-                                  fill={zone.color}
-                                  fillOpacity={isOccupied ? 0.28 : 0.12}
-                                  stroke={zone.color}
-                                  strokeWidth="0.003"
-                                  strokeDasharray="0.008 0.005"
-                                />
-                              )}
-
-                              {/* Perspective Pillars / Extrusion Lines */}
-                              {zone.volumetric?.pillar && (
+                              {/* 4 Vertical Perspective Pillars */}
+                              {pillars.map((pil, pIdx) => (
                                 <line
-                                  x1={zone.volumetric.pillar[0][0]}
-                                  y1={zone.volumetric.pillar[0][1]}
-                                  x2={zone.volumetric.pillar[1][0]}
-                                  y2={zone.volumetric.pillar[1][1]}
+                                  key={`pil-${pIdx}`}
+                                  x1={pil[0][0]}
+                                  y1={pil[0][1]}
+                                  x2={pil[1][0]}
+                                  y2={pil[1][1]}
                                   stroke={zone.color}
-                                  strokeWidth="0.003"
+                                  strokeWidth="0.005"
+                                  strokeLinecap="round"
                                 />
-                              )}
+                              ))}
+
+                              {/* Zone Floor Base Polygon */}
+                              <polygon
+                                points={floorPts.map(p => p.join(',')).join(' ')}
+                                fill={zone.color}
+                                fillOpacity={isOccupied ? 0.40 : 0.26}
+                                stroke={zone.color}
+                                strokeWidth="0.0045"
+                                strokeLinejoin="round"
+                              />
+
+                              {/* Floating 3D Zone Name Badge (Matching Image 1) */}
+                              <g className="floating-zone-badge" style={{ pointerEvents: 'none' }}>
+                                <rect
+                                  x={cx - 0.054}
+                                  y={cy - 0.02}
+                                  width={0.108}
+                                  height={0.04}
+                                  rx={0.012}
+                                  fill={zone.color}
+                                  filter="drop-shadow(0px 2px 5px rgba(0,0,0,0.7))"
+                                />
+                                <text
+                                  x={cx}
+                                  y={cy + 0.002}
+                                  fill="#FFFFFF"
+                                  fontSize="0.022"
+                                  fontWeight="800"
+                                  textAnchor="middle"
+                                  dominantBaseline="middle"
+                                  style={{ letterSpacing: '0.001em' }}
+                                >
+                                  {zone.name}
+                                </text>
+                              </g>
                             </g>
                           );
                         })}
 
-                        {/* Detected Occupant Centroid & Boxes */}
+                        {/* Detected Occupant Centroid & High-Visibility Bounding Boxes */}
                         {boxes.map((b, idx) => {
                           const cx = (b.x1 + b.x2) / 2;
                           const cy = (b.y1 + b.y2) / 2;
                           const w = b.x2 - b.x1;
                           const h = b.y2 - b.y1;
+                          const tagX = Math.max(0.01, Math.min(0.83, cx - 0.08));
+                          const tagY = Math.max(0.01, b.y1 - 0.038);
 
                           return (
                             <g key={idx} className="occupant-marker-group">
+                              {/* 1. Visible Translucent Body Highlight Rectangle */}
                               <rect
                                 x={b.x1}
                                 y={b.y1}
                                 width={w}
                                 height={h}
-                                fill="none"
-                                stroke="#10B981"
-                                strokeWidth="0.004"
-                                rx="0.005"
+                                fill="rgba(239, 68, 68, 0.22)"
+                                stroke="#EF4444"
+                                strokeWidth="0.007"
+                                rx="0.006"
+                                style={{ filter: 'drop-shadow(0 0 4px rgba(239, 68, 68, 0.8))' }}
                               />
-                              <circle cx={cx} cy={cy} r="0.012" fill="#10B981" />
+
+                              {/* 2. Distinct Corner Brackets for Computer Vision HUD */}
+                              <path
+                                d={`
+                                  M ${b.x1} ${b.y1 + Math.min(0.05, h * 0.25)} L ${b.x1} ${b.y1} L ${b.x1 + Math.min(0.05, w * 0.25)} ${b.y1}
+                                  M ${b.x2 - Math.min(0.05, w * 0.25)} ${b.y1} L ${b.x2} ${b.y1} L ${b.x2} ${b.y1 + Math.min(0.05, h * 0.25)}
+                                  M ${b.x1} ${b.y2 - Math.min(0.05, h * 0.25)} L ${b.x1} ${b.y2} L ${b.x1 + Math.min(0.05, w * 0.25)} ${b.y2}
+                                  M ${b.x2 - Math.min(0.05, w * 0.25)} ${b.y2} L ${b.x2} ${b.y2} L ${b.x2} ${b.y2 - Math.min(0.05, h * 0.25)}
+                                `}
+                                fill="none"
+                                stroke="#FF1744"
+                                strokeWidth="0.012"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+
+                              {/* 3. Centroid Marker Dot */}
+                              <circle cx={cx} cy={cy} r="0.014" fill="#FF1744" />
                               <circle cx={cx} cy={cy} r="0.006" fill="#FFFFFF" />
+
+                              {/* 4. Head Dot Marker */}
+                              <circle cx={cx} cy={b.y1} r="0.012" fill="#EF4444" />
+                              <circle cx={cx} cy={b.y1} r="0.005" fill="#FFFFFF" />
+
+                              {/* 5. Solid Floating Person Pill Tag */}
+                              <rect
+                                x={tagX}
+                                y={tagY}
+                                width="0.16"
+                                height="0.034"
+                                rx="0.006"
+                                fill="#EF4444"
+                                stroke="#FFFFFF"
+                                strokeWidth="0.002"
+                              />
                               <text
-                                x={cx}
-                                y={Math.max(0.04, b.y1 - 0.015)}
+                                x={tagX + 0.08}
+                                y={tagY + 0.023}
                                 fill="#FFFFFF"
-                                fontSize="0.024"
-                                fontWeight="700"
+                                fontSize="0.018"
+                                fontWeight="800"
                                 textAnchor="middle"
                                 className="occupant-tag-text"
                               >
@@ -1556,186 +2119,478 @@ export default function App() {
           </div>
         )}
 
-        {/* TAB B: UNIFIED DASHBOARD & ANALYTICS (Combines Overview, Analytics, and Settings) */}
+        {/* TAB B: UNIFIED DASHBOARD & ANALYTICS (Continuous Single-Page with Overview, Energy Prediction, and Settings) */}
         {activeTab === 'home' && (
           <div className="tab-pane active-pane">
             <div className="page-header-block">
-              <h1 className="page-title">
-                {dashboardSubTab === 'overview' && 'Welcome to S.E.R.O.S.'}
-                {dashboardSubTab === 'analytics' && 'Energy & Sensor Analytics'}
-                {dashboardSubTab === 'settings' && 'System Settings & Hardware'}
-              </h1>
-              <p className="page-subtitle">
-                {dashboardSubTab === 'overview' && 'Eco-Smart Energy & Resource Optimization Dashboard'}
-                {dashboardSubTab === 'analytics' && 'Real-time HTU21DF telemetry and spatial power conservation metrics'}
-                {dashboardSubTab === 'settings' && 'Hardware connection configuration and automation parameters'}
-              </p>
+              <h1 className="page-title">Welcome to S.E.R.O.S.</h1>
+              <p className="page-subtitle">Eco-Smart Energy & Resource Optimization Dashboard • Classroom 101</p>
             </div>
 
-            {/* Dashboard Sub-Tabs Switcher */}
-            <div className="dashboard-subtabs-nav">
-              <button
-                type="button"
-                className={`dashboard-subtab-btn ${dashboardSubTab === 'overview' ? 'active' : ''}`}
-                onClick={() => setDashboardSubTab('overview')}
+            {/* Quick Section Anchor Jump Bar */}
+            <div className="dashboard-subtabs-nav" style={{ marginBottom: 24 }}>
+              <a
+                href="#section-overview"
+                className="dashboard-subtab-btn active"
+                style={{ textDecoration: 'none' }}
               >
                 <Icon name="dashboard" size={16} />
-                <span>Room Overview</span>
-              </button>
-              <button
-                type="button"
-                className={`dashboard-subtab-btn ${dashboardSubTab === 'analytics' ? 'active' : ''}`}
-                onClick={() => setDashboardSubTab('analytics')}
+                <span>1. Room Overview</span>
+              </a>
+              <a
+                href="#section-energy-prediction"
+                className="dashboard-subtab-btn"
+                style={{ textDecoration: 'none' }}
               >
-                <Icon name="analytics" size={16} />
-                <span>Energy & Sensor Analytics</span>
-              </button>
-              <button
-                type="button"
-                className={`dashboard-subtab-btn ${dashboardSubTab === 'settings' ? 'active' : ''}`}
-                onClick={() => setDashboardSubTab('settings')}
+                <Icon name="bolt" size={16} color="#00E676" />
+                <span>2. Energy Analytics & Bill Prediction</span>
+              </a>
+              <a
+                href="#section-settings-hardware"
+                className="dashboard-subtab-btn"
+                style={{ textDecoration: 'none' }}
               >
-                <Icon name="settings" size={16} />
-                <span>Hardware & Settings</span>
-              </button>
+                <Icon name="tune" size={16} />
+                <span>3. Hardware & Tariff Settings</span>
+              </a>
             </div>
 
-            {/* SUB-PANE 1: OVERVIEW */}
-            {dashboardSubTab === 'overview' && (
-              <div className="home-dashboard-grid">
-                {/* Classroom Overview Card */}
-                <div className="home-hero-card">
-                  <div className="hero-top-row">
-                    <div className="hero-status-left">
-                      <span className="live-status-pill">
-                        <span className="pulse-indicator-dot" />
-                        <span>Active Classroom</span>
-                      </span>
-                      <h2>Classroom 101</h2>
-                      <p className="hero-subtext">Active Layout: <strong>{currentLayout.name}</strong> • AI Spatial Automation Enabled</p>
-                    </div>
-                    <button type="button" className="btn-hero-action" onClick={() => setActiveTab('rooms')}>
-                      <Icon name="meeting_room" size={18} color="#FFFFFF" />
-                      <span>Enter Live Room</span>
-                    </button>
+            {/* =========================================================================
+                SECTION 1: ROOM OVERVIEW & CONNECTIVITY
+               ========================================================================= */}
+            <div id="section-overview" className="home-dashboard-grid" style={{ marginBottom: 32 }}>
+              {/* Classroom Overview Card */}
+              <div className="home-hero-card">
+                <div className="hero-top-row">
+                  <div className="hero-status-left">
+                    <span className="live-status-pill">
+                      <span className="pulse-indicator-dot" />
+                      <span>Active Classroom</span>
+                    </span>
+                    <h2>Classroom 101</h2>
+                    <p className="hero-subtext">Active Layout: <strong>{currentLayout.name}</strong> • AI Spatial Automation Enabled</p>
                   </div>
+                  <button type="button" className="btn-hero-action" onClick={() => setActiveTab('rooms')}>
+                    <Icon name="meeting_room" size={18} color="#FFFFFF" />
+                    <span>Enter Live Room</span>
+                  </button>
+                </div>
 
-                  <div className="hero-metrics-quad">
-                    <div className="hero-stat-card">
-                      <Icon name="groups" size={22} color="#006934" />
-                      <span className="stat-number">{boxes.length}</span>
-                      <span className="stat-desc">Active Occupants</span>
-                    </div>
-                    <div className="hero-stat-card">
-                      <Icon name="thermostat" size={22} color="#1E6585" />
-                      <span className="stat-number">{sensor.temperature.toFixed(1)}°C</span>
-                      <span className="stat-desc">Live Room Temp</span>
-                    </div>
-                    <div className="hero-stat-card">
-                      <Icon name="sensors" size={22} color="#7E5200" />
-                      <span className="stat-number">{sensor.humidity.toFixed(0)}%</span>
-                      <span className="stat-desc">Live Humidity</span>
-                    </div>
-                    <div className="hero-stat-card">
-                      <Icon name="bolt" size={22} color="#006934" />
-                      <span className="stat-number">{sensor.energy_saving_percent}%</span>
-                      <span className="stat-desc">Energy Saved</span>
-                    </div>
+                <div className="hero-metrics-quad">
+                  <div className="hero-stat-card">
+                    <Icon name="groups" size={22} color="#006934" />
+                    <span className="stat-number">{boxes.length}</span>
+                    <span className="stat-desc">Active Occupants</span>
+                  </div>
+                  <div className="hero-stat-card">
+                    <Icon name="thermostat" size={22} color="#1E6585" />
+                    <span className="stat-number">{sensor.temperature.toFixed(1)}°C</span>
+                    <span className="stat-desc">Live Room Temp</span>
+                  </div>
+                  <div className="hero-stat-card">
+                    <Icon name="sensors" size={22} color="#7E5200" />
+                    <span className="stat-number">{sensor.humidity.toFixed(0)}%</span>
+                    <span className="stat-desc">Live Humidity</span>
+                  </div>
+                  <div className="hero-stat-card">
+                    <Icon name="bolt" size={22} color="#006934" />
+                    <span className="stat-number">{sensor.energy_saving_percent}%</span>
+                    <span className="stat-desc">Energy Saved</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Quick Actions & System Connectivity */}
+              <div className="home-sidebar-cards">
+                <div className="system-health-card">
+                  <h3>System Status</h3>
+                  <div className="health-item-row">
+                    <span className="health-name">ESP32 Relay Board</span>
+                    <span className="health-badge ok">Connected</span>
+                  </div>
+                  <div className="health-item-row">
+                    <span className="health-name">HTU21DF Sensor</span>
+                    <span className="health-badge ok">Active Live</span>
+                  </div>
+                  <div className="health-item-row">
+                    <span className="health-name">YOLO Camera Vision</span>
+                    <span className="health-badge ok">{isCameraOn ? 'Tracking' : 'Standby / Paused'}</span>
+                  </div>
+                  <div className="health-item-row">
+                    <span className="health-name">Universal AC IR Remote</span>
+                    <span className="health-badge ok">GPIO 4 Armed</span>
                   </div>
                 </div>
 
-                {/* Quick Actions & System Connectivity */}
-                <div className="home-sidebar-cards">
-                  <div className="system-health-card">
-                    <h3>System Status</h3>
-                    <div className="health-item-row">
-                      <span className="health-name">ESP32 Relay Board</span>
-                      <span className="health-badge ok">Connected</span>
+                <div className="quick-nav-card">
+                  <h3>Shortcuts</h3>
+                  <button type="button" className="shortcut-btn" onClick={() => setActiveTab('layouts')}>
+                    <Icon name="layers" size={18} color="#006934" />
+                    <span>Manage Room Layouts</span>
+                  </button>
+                  <button type="button" className="shortcut-btn" onClick={() => setActiveTab('add_devices')}>
+                    <Icon name="add_circle" size={18} color="#006934" />
+                    <span>Add Devices (Choose Layout First)</span>
+                  </button>
+                  <a href="#section-energy-prediction" className="shortcut-btn" style={{ textDecoration: 'none' }}>
+                    <Icon name="analytics" size={18} color="#006934" />
+                    <span>Jump to Energy Analytics & Bill</span>
+                  </a>
+                  <a href="#section-settings-hardware" className="shortcut-btn" style={{ textDecoration: 'none' }}>
+                    <Icon name="settings" size={18} color="#006934" />
+                    <span>Configure Tariff & Hardware</span>
+                  </a>
+                </div>
+              </div>
+            </div>
+
+            {/* =========================================================================
+                SECTION 2: DYNAMIC ENERGY ANALYTICS & BILL PREDICTION (From Mobile App)
+               ========================================================================= */}
+            <div id="section-energy-prediction" className="energy-prediction-section" style={{ marginBottom: 36 }}>
+              <div className="section-divider-heading">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ background: '#006934', color: '#FFF', borderRadius: 8, padding: '6px 8px', display: 'flex' }}>
+                    <Icon name="bolt" size={20} color="#FFFFFF" />
+                  </div>
+                  <div>
+                    <h2 style={{ fontSize: 20, fontWeight: 800, margin: 0, color: '#0F172A' }}>Energy Analytics & Dynamic Bill Prediction</h2>
+                    <p style={{ margin: 0, fontSize: 13, color: '#64748B' }}>Real-time telemetry, daily power schedule intensity, and projected utility estimator</p>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    type="button"
+                    onClick={handleDownloadBillStatement}
+                    className="btn-download-bill-statement"
+                    title="Export bill breakdown summary"
+                  >
+                    <Icon name="download" size={16} />
+                    <span>Download Statement</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* 1. Energy Hero Card (Mobile Screen 4) */}
+              <div className="energy-hero-banner" style={{ marginTop: 16 }}>
+                <div className="energy-hero-content">
+                  <div className="energy-hero-title">
+                    You used {sensor.energy_saving_percent}% less electricity today! 🎉
+                  </div>
+                  <div className="energy-hero-sub">
+                    Great job! Your classrooms and labs are powered down safely via AI occupancy zoning.
+                  </div>
+
+                  <div className="energy-cost-callout-card">
+                    <div className="cost-dial-icon">
+                      <Icon name="energy_savings_leaf" size={28} color="#006934" />
                     </div>
-                    <div className="health-item-row">
-                      <span className="health-name">HTU21DF Sensor</span>
-                      <span className="health-badge ok">Active Live</span>
+                    <div className="cost-info-block">
+                      <div className="cost-label">Estimated Cost Today</div>
+                      <div className="cost-amount">₹{todayCost}</div>
                     </div>
-                    <div className="health-item-row">
-                      <span className="health-name">YOLO Camera Vision</span>
-                      <span className="health-badge ok">{isCameraOn ? 'Tracking' : 'Standby / Paused'}</span>
-                    </div>
-                    <div className="health-item-row">
-                      <span className="health-name">Universal AC IR Remote</span>
-                      <span className="health-badge ok">GPIO 4 Armed</span>
+                    <div className="cost-savings-pill">
+                      <Icon name="arrow_downward" size={14} color="#006934" />
+                      <span>₹{todaySavedCost} saved vs unzoned</span>
                     </div>
                   </div>
 
-                  <div className="quick-nav-card">
-                    <h3>Shortcuts</h3>
-                    <button type="button" className="shortcut-btn" onClick={() => setActiveTab('layouts')}>
-                      <Icon name="layers" size={18} color="#006934" />
-                      <span>Manage Room Layouts</span>
+                  {/* Filter Pills */}
+                  <div className="energy-timeframe-pills">
+                    <button
+                      type="button"
+                      className={`time-pill ${energyTimeframe === 'today' ? 'active' : ''}`}
+                      onClick={() => setEnergyTimeframe('today')}
+                    >
+                      Today
                     </button>
-                    <button type="button" className="shortcut-btn" onClick={() => setActiveTab('add_devices')}>
-                      <Icon name="add_circle" size={18} color="#006934" />
-                      <span>Add Devices (Choose Layout First)</span>
+                    <button
+                      type="button"
+                      className={`time-pill ${energyTimeframe === '7days' ? 'active' : ''}`}
+                      onClick={() => setEnergyTimeframe('7days')}
+                    >
+                      Last 7 Days
                     </button>
-                    <button type="button" className="shortcut-btn" onClick={() => setDashboardSubTab('analytics')}>
-                      <Icon name="analytics" size={18} color="#006934" />
-                      <span>View Energy Analytics</span>
-                    </button>
-                    <button type="button" className="shortcut-btn" onClick={() => setDashboardSubTab('settings')}>
-                      <Icon name="settings" size={18} color="#006934" />
-                      <span>Configure Settings & Hardware</span>
+                    <button
+                      type="button"
+                      className={`time-pill ${energyTimeframe === 'month' ? 'active' : ''}`}
+                      onClick={() => setEnergyTimeframe('month')}
+                    >
+                      This Month
                     </button>
                   </div>
                 </div>
               </div>
-            )}
 
-            {/* SUB-PANE 2: ANALYTICS */}
-            {dashboardSubTab === 'analytics' && (
-              <div>
-                <div className="analytics-grid">
-                  <div className="analytics-metric-card">
-                    <div className="card-top">
-                      <span className="card-title">Live Room Temperature</span>
-                      <Icon name="thermostat" size={20} color="#1E6585" />
+              {/* 2. Grid: Weekly Daily Power & Schedule Intensity (Mobile Screen 3 & 4) */}
+              <div className="energy-two-col-grid" style={{ marginTop: 20 }}>
+                {/* Column A: Weekly Daily Power Bar Chart */}
+                <div className="module-card">
+                  <div className="card-top" style={{ marginBottom: 6 }}>
+                    <div>
+                      <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>Weekly Daily Power</h3>
+                      <p style={{ margin: 0, fontSize: 12, color: '#64748B' }}>Touch / click any day to inspect cost</p>
                     </div>
-                    <div className="card-main-val">{sensor.temperature.toFixed(1)}°C</div>
-                    <div className="card-footer-sub">ESP32 HTU21DF Sensor • Target 24.0°C</div>
+                    <div style={{ background: 'rgba(0, 105, 52, 0.12)', padding: '5px 8px', borderRadius: 8 }}>
+                      <Icon name="bar_chart" size={20} color="#006934" />
+                    </div>
                   </div>
 
-                  <div className="analytics-metric-card">
-                    <div className="card-top">
-                      <span className="card-title">Live Relative Humidity</span>
-                      <Icon name="sensors" size={20} color="#7E5200" />
-                    </div>
-                    <div className="card-main-val">{sensor.humidity.toFixed(0)}%</div>
-                    <div className="card-footer-sub">Comfort range (40% - 60%)</div>
-                  </div>
+                  {/* Interactive Day Bars */}
+                  {(() => {
+                    const days = [
+                      { label: 'M', cost: 42, type: 'mid', note: 'Mon: Moderate power (₹42) — Morning lighting' },
+                      { label: 'T', cost: 32, type: 'low', note: 'Tue: Low power (₹32) — Spatial zones idle' },
+                      { label: 'W', cost: 64, type: 'peak', note: 'Wed: Highest use (₹64) — ACs ran past 4 PM' },
+                      { label: 'T', cost: 38, type: 'low', note: 'Thu: Balanced use (₹38) — Only 2 fans active' },
+                      { label: 'F', cost: 50, type: 'mid', note: 'Fri: Evening labs active (₹50)' },
+                      { label: 'S', cost: 18, type: 'low', note: 'Sat: Weekend standby power (₹18)' },
+                      { label: 'S', cost: todayCost, type: todayCost > 55 ? 'peak' : todayCost > 38 ? 'mid' : 'low', note: `Sun: Today's live run (₹${todayCost}) • Active load ${activeWattage}W` },
+                    ];
+                    const maxCost = 75;
+                    const selectedDay = days[selectedDayIndex] || days[2];
 
-                  <div className="analytics-metric-card">
-                    <div className="card-top">
-                      <span className="card-title">Power Conserved</span>
-                      <Icon name="bolt" size={20} color="#006934" />
-                    </div>
-                    <div className="card-main-val">{sensor.energy_saving_percent}%</div>
-                    <div className="card-footer-sub">Saved vs unzoned baseline</div>
-                  </div>
+                    return (
+                      <div>
+                        <div className="weekly-bars-container">
+                          {days.map((d, idx) => {
+                            const isSelected = selectedDayIndex === idx;
+                            const heightPct = Math.min(100, Math.round((d.cost / maxCost) * 100));
+                            const barColor = d.type === 'peak' ? '#DC2626' : d.type === 'mid' ? '#F59E0B' : '#006934';
+                            return (
+                              <div
+                                key={idx}
+                                className={`weekly-bar-col ${isSelected ? 'selected' : ''}`}
+                                onClick={() => setSelectedDayIndex(idx)}
+                                title={`Click to inspect ${d.label}`}
+                              >
+                                <span className="bar-cost-tag">₹{d.cost}</span>
+                                <div className="bar-track-vert">
+                                  <div
+                                    className="bar-fill-vert"
+                                    style={{
+                                      height: `${heightPct}%`,
+                                      backgroundColor: barColor,
+                                      boxShadow: isSelected ? `0 0 10px ${barColor}` : 'none'
+                                    }}
+                                  />
+                                </div>
+                                <span className={`bar-day-label ${isSelected ? 'active-day' : ''}`}>{d.label}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
 
-                  <div className="analytics-metric-card">
-                    <div className="card-top">
-                      <span className="card-title">Active Devices</span>
-                      <Icon name="apps" size={20} color="#006934" />
-                    </div>
-                    <div className="card-main-val">
-                      {devices.filter(d => d.status === 'ON').length} / {devices.length}
-                    </div>
-                    <div className="card-footer-sub">Only occupied zones energized</div>
-                  </div>
+                        {/* Selected Day Inspection Alert Banner */}
+                        <div className="day-inspection-alert">
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span className="inspection-dot" style={{ backgroundColor: selectedDay.type === 'peak' ? '#DC2626' : selectedDay.type === 'mid' ? '#F59E0B' : '#006934' }} />
+                            <span style={{ fontSize: 13, fontWeight: 700, color: '#1E293B' }}>{selectedDay.note}</span>
+                          </div>
+                          <span style={{ fontSize: 12, fontWeight: 800, color: '#006934', cursor: 'pointer' }}>Details</span>
+                        </div>
+
+                        {/* Legend */}
+                        <div className="bar-legend-row">
+                          <div className="legend-chip">
+                            <span className="dot" style={{ backgroundColor: '#006934' }} />
+                            <span>Low use (₹32)</span>
+                          </div>
+                          <div className="legend-chip">
+                            <span className="dot" style={{ backgroundColor: '#F59E0B' }} />
+                            <span>Medium</span>
+                          </div>
+                          <div className="legend-chip">
+                            <span className="dot" style={{ backgroundColor: '#DC2626' }} />
+                            <span>Peak (₹64)</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
 
-                {/* Zone Power Breakdown */}
-                <div className="module-card" style={{ marginTop: 20 }}>
-                  <h3 style={{ marginBottom: 16 }}>Zone-by-Zone Power Consumption</h3>
-                  <div className="zone-bars-list">
+                {/* Column B: Schedule Intensity Heatmap Grid (Mobile Screen 3) */}
+                <div className="module-card">
+                  <div className="card-top" style={{ marginBottom: 6 }}>
+                    <div>
+                      <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>When is power used most?</h3>
+                      <p style={{ margin: 0, fontSize: 12, color: '#64748B' }}>Daily schedule energy intensity</p>
+                    </div>
+                    <div style={{ background: 'rgba(0, 105, 52, 0.12)', padding: '5px 8px', borderRadius: 8 }}>
+                      <Icon name="grid_view" size={20} color="#006934" />
+                    </div>
+                  </div>
+
+                  <div className="schedule-matrix-wrapper">
+                    <table className="schedule-matrix-table">
+                      <thead>
+                        <tr>
+                          <th>Day</th>
+                          <th>8 AM<br/><span style={{ fontSize: 10, color: '#94A3B8' }}>Morn</span></th>
+                          <th>12 PM<br/><span style={{ fontSize: 10, color: '#94A3B8' }}>Noon</span></th>
+                          <th>4 PM<br/><span style={{ fontSize: 10, color: '#94A3B8' }}>Eve</span></th>
+                          <th>8 PM<br/><span style={{ fontSize: 10, color: '#94A3B8' }}>Night</span></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <td className="day-name">Mon</td>
+                          <td><span className="matrix-chip mid">Mid</span></td>
+                          <td><span className="matrix-chip peak">Peak</span></td>
+                          <td><span className="matrix-chip mid">Mid</span></td>
+                          <td><span className="matrix-chip off">Off</span></td>
+                        </tr>
+                        <tr>
+                          <td className="day-name">Tue</td>
+                          <td><span className="matrix-chip low">Low</span></td>
+                          <td><span className="matrix-chip mid">Mid</span></td>
+                          <td><span className="matrix-chip low">Low</span></td>
+                          <td><span className="matrix-chip off">Off</span></td>
+                        </tr>
+                        <tr>
+                          <td className="day-name">Wed</td>
+                          <td><span className="matrix-chip mid">Mid</span></td>
+                          <td><span className="matrix-chip peak">Peak</span></td>
+                          <td><span className="matrix-chip peak">Peak</span></td>
+                          <td><span className="matrix-chip off">Off</span></td>
+                        </tr>
+                        <tr>
+                          <td className="day-name">Thu</td>
+                          <td><span className="matrix-chip low">Low</span></td>
+                          <td><span className="matrix-chip mid">Mid</span></td>
+                          <td><span className="matrix-chip mid">Mid</span></td>
+                          <td><span className="matrix-chip off">Off</span></td>
+                        </tr>
+                        <tr>
+                          <td className="day-name">Fri</td>
+                          <td><span className="matrix-chip mid">Mid</span></td>
+                          <td><span className="matrix-chip mid">Mid</span></td>
+                          <td><span className="matrix-chip low">Low</span></td>
+                          <td><span className="matrix-chip off">Off</span></td>
+                        </tr>
+                      </tbody>
+                    </table>
+
+                    {/* Schedule Legend */}
+                    <div className="schedule-legend-pill" style={{ marginTop: 12 }}>
+                      <span><span className="dot" style={{ backgroundColor: '#006934' }} /> Low / Off</span>
+                      <span><span className="dot" style={{ backgroundColor: '#F59E0B' }} /> Medium</span>
+                      <span><span className="dot" style={{ backgroundColor: '#DC2626' }} /> Busy / High</span>
+                    </div>
+
+                    {/* Classroom Advice Callout Box */}
+                    <div className="classroom-advice-box" style={{ marginTop: 14 }}>
+                      <Icon name="wb_sunny" size={20} color="#D97706" />
+                      <span>Classrooms use most energy between <strong>10 AM and 2 PM</strong> when projectors and multiple fans are running.</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 3. Bill Estimator (Mobile Screen 5) & Live Zone Power Breakdown */}
+              <div className="energy-two-col-grid" style={{ marginTop: 20 }}>
+                {/* Bill Estimator Card */}
+                <div className="module-card bill-estimator-module">
+                  <div className="card-top" style={{ marginBottom: 6 }}>
+                    <div>
+                      <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>Bill Estimator</h3>
+                      <p style={{ margin: 0, fontSize: 12, color: '#64748B' }}>Expected total for this cycle</p>
+                    </div>
+                    <div style={{ background: 'rgba(0, 105, 52, 0.12)', padding: '5px 8px', borderRadius: 8 }}>
+                      <Icon name="receipt_long" size={20} color="#006934" />
+                    </div>
+                  </div>
+
+                  {/* Main Estimated Total Banner */}
+                  <div className="bill-estimated-total-card">
+                    <div className="bill-label">Estimated Monthly Bill</div>
+                    <div className="bill-big-amount">₹{projectedTotalBill.toLocaleString('en-IN')}</div>
+                    <div className="bill-sub">Next bill arrives in 12 days</div>
+                  </div>
+
+                  {/* Projected Units Selector */}
+                  <div style={{ marginTop: 16 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                      <span style={{ fontSize: 13, fontWeight: 800, color: '#0F172A' }}>Projected Units:</span>
+                      <span className="projected-badge">{projectedKwh} kWh</span>
+                    </div>
+                    <div className="projected-kwh-pills">
+                      {[180, 250, 320, 400].map(kwh => (
+                        <button
+                          key={kwh}
+                          type="button"
+                          className={`kwh-pill ${projectedKwh === kwh ? 'active' : ''}`}
+                          onClick={() => setProjectedKwh(kwh)}
+                        >
+                          {kwh} kWh
+                        </button>
+                      ))}
+                    </div>
+                    <div style={{ marginTop: 8 }}>
+                      <input
+                        type="range"
+                        min="50"
+                        max="800"
+                        step="10"
+                        value={projectedKwh}
+                        onChange={(e) => setProjectedKwh(Number(e.target.value))}
+                        style={{ width: '100%', accentColor: '#006934', cursor: 'pointer' }}
+                        title="Fine-tune projected units slider"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Simple Breakdown Table */}
+                  <div className="bill-simple-breakdown" style={{ marginTop: 14 }}>
+                    <div className="breakdown-title">SIMPLE BREAKDOWN</div>
+                    <div className="breakdown-row">
+                      <span>Energy use ({projectedKwh} kWh @ ₹{tariffRate.toFixed(2)}):</span>
+                      <strong>₹{projectedEnergyCost.toLocaleString('en-IN')}</strong>
+                    </div>
+                    <div className="breakdown-row">
+                      <span>Standard charges (Fixed):</span>
+                      <strong>₹{fixedMonthlyCharges.toLocaleString('en-IN')}</strong>
+                    </div>
+                    <div className="breakdown-row">
+                      <span>Government duty ({dutyRatePct}%):</span>
+                      <strong>₹{projectedDutyCost.toLocaleString('en-IN')}</strong>
+                    </div>
+                  </div>
+
+                  {/* Quick Tip Box */}
+                  <div className="quick-tip-callout" style={{ marginTop: 14 }}>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                      <Icon name="lightbulb" size={18} color="#D97706" />
+                      <span style={{ fontSize: 12, lineHeight: 1.45, color: '#1E293B' }}>
+                        <strong>Quick Tip:</strong> Turning off ACs 15 mins before leaving saves approximately <strong>~₹320/month</strong> without warming up rooms!
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Statement Download CTA */}
+                  <button
+                    type="button"
+                    className="btn-download-bill-full"
+                    onClick={handleDownloadBillStatement}
+                    style={{ marginTop: 14 }}
+                  >
+                    <Icon name="download" size={16} color="#FFFFFF" />
+                    <span>Download Plain-Language Bill Statement</span>
+                  </button>
+                </div>
+
+                {/* Live Zone Power Breakdown Card */}
+                <div className="module-card">
+                  <div className="card-top" style={{ marginBottom: 10 }}>
+                    <div>
+                      <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>Live Zone Power Consumption</h3>
+                      <p style={{ margin: 0, fontSize: 12, color: '#64748B' }}>Spatial load per assigned quadrant & relay</p>
+                    </div>
+                    <span className="live-watts-pill">Total: {activeWattage}W Active</span>
+                  </div>
+
+                  <div className="zone-bars-list" style={{ marginTop: 12 }}>
                     {currentLayout.zones.map(z => {
                       const zDevs = devices.filter(d => (d.quadrantNum === z.num) || (d.quadrants && d.quadrants.includes(z.num)));
                       const zWatts = zDevs.filter(d => d.status === 'ON').reduce((sum, d) => sum + (d.powerWatts || 40), 0);
@@ -1747,22 +2602,135 @@ export default function App() {
                           <div className="bar-label-group">
                             <span className="bar-dot" style={{ backgroundColor: z.color }} />
                             <span className="bar-name">{z.name}</span>
-                            <span className="bar-watts">{zWatts}W active</span>
+                            <span className="bar-relay-tag">Relay {z.relay || z.num} (Pin {getRelayPin(z.relay || z.num)})</span>
+                            <span className="bar-watts">{zWatts}W</span>
                           </div>
                           <div className="bar-track">
-                            <div className="bar-fill" style={{ width: `${Math.max(5, pct)}%`, backgroundColor: z.color }} />
+                            <div className="bar-fill" style={{ width: `${Math.max(4, pct)}%`, backgroundColor: z.color }} />
                           </div>
                         </div>
                       );
                     })}
                   </div>
+
+                  {/* Environmental Telemetry summary */}
+                  <div style={{ marginTop: 18, padding: '12px 14px', background: 'rgba(0,105,52,0.06)', borderRadius: 10, border: '1px solid rgba(0,105,52,0.15)' }}>
+                    <div style={{ fontSize: 11, fontWeight: 800, color: '#006934', marginBottom: 6, textTransform: 'uppercase' }}>
+                      Environmental Telemetry Correlation
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+                      <div>
+                        <span style={{ fontSize: 11, color: '#64748B' }}>Room Temp</span>
+                        <div style={{ fontSize: 16, fontWeight: 800, color: '#0F172A' }}>{sensor.temperature.toFixed(1)}°C</div>
+                      </div>
+                      <div>
+                        <span style={{ fontSize: 11, color: '#64748B' }}>Humidity</span>
+                        <div style={{ fontSize: 16, fontWeight: 800, color: '#0F172A' }}>{sensor.humidity.toFixed(0)}%</div>
+                      </div>
+                      <div>
+                        <span style={{ fontSize: 11, color: '#64748B' }}>Active Devices</span>
+                        <div style={{ fontSize: 16, fontWeight: 800, color: '#0F172A' }}>{devices.filter(d => d.status === 'ON').length}/{devices.length}</div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
-            )}
+            </div>
 
-            {/* SUB-PANE 3: SETTINGS */}
-            {dashboardSubTab === 'settings' && (
-              <div className="settings-cards-list">
+            {/* =========================================================================
+                SECTION 3: SYSTEM SETTINGS, HARDWARE & TARIFF CONFIGURATION
+               ========================================================================= */}
+            <div id="section-settings-hardware" className="settings-section" style={{ marginTop: 36, marginBottom: 40 }}>
+              <div className="section-divider-heading">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ background: '#0F172A', color: '#FFF', borderRadius: 8, padding: '6px 8px', display: 'flex' }}>
+                    <Icon name="tune" size={20} color="#FFFFFF" />
+                  </div>
+                  <div>
+                    <h2 style={{ fontSize: 20, fontWeight: 800, margin: 0, color: '#0F172A' }}>Hardware, System & Tariff Configuration</h2>
+                    <p style={{ margin: 0, fontSize: 13, color: '#64748B' }}>Customize electricity billing parameters, ESP32 sensors, and AI vision camera</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="settings-cards-list" style={{ marginTop: 16 }}>
+                {/* 1. Electricity Tariff & Billing Configuration Card */}
+                <div className="module-card">
+                  <div className="card-top" style={{ marginBottom: 12 }}>
+                    <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>⚡ Electricity Tariff & Billing Parameters</h3>
+                    <span style={{ fontSize: 11, color: '#006934', fontWeight: 700 }}>● Auto-Saved</span>
+                  </div>
+                  <div className="action-row-item">
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: 13, color: '#0F172A' }}>Tariff Rate (₹ per kWh / Unit)</div>
+                      <div style={{ fontSize: 11, color: '#64748B' }}>Applied to active classroom consumption</div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontWeight: 800 }}>₹</span>
+                      <input
+                        type="number"
+                        step="0.10"
+                        min="1"
+                        max="25"
+                        value={tariffRate}
+                        onChange={(e) => {
+                          const v = parseFloat(e.target.value) || 5.50;
+                          setTariffRate(v);
+                          try { localStorage.setItem('seros_tariff_rate', String(v)); } catch {}
+                        }}
+                        style={{ width: 80, padding: '6px 10px', borderRadius: 6, border: '1px solid #CBD5E1', fontWeight: 800 }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="action-row-item">
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: 13, color: '#0F172A' }}>Standard Fixed Charges (₹ per Month)</div>
+                      <div style={{ fontSize: 11, color: '#64748B' }}>Fixed monthly meter and sanction load cost</div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontWeight: 800 }}>₹</span>
+                      <input
+                        type="number"
+                        step="50"
+                        min="0"
+                        max="10000"
+                        value={fixedMonthlyCharges}
+                        onChange={(e) => {
+                          const v = parseFloat(e.target.value) || 1350;
+                          setFixedMonthlyCharges(v);
+                          try { localStorage.setItem('seros_fixed_charges', String(v)); } catch {}
+                        }}
+                        style={{ width: 80, padding: '6px 10px', borderRadius: 6, border: '1px solid #CBD5E1', fontWeight: 800 }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="action-row-item">
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: 13, color: '#0F172A' }}>Government Electricity Duty (%)</div>
+                      <div style={{ fontSize: 11, color: '#64748B' }}>State statutory surcharge applied on energy use</div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <input
+                        type="number"
+                        step="1"
+                        min="0"
+                        max="30"
+                        value={dutyRatePct}
+                        onChange={(e) => {
+                          const v = parseFloat(e.target.value) || 8;
+                          setDutyRatePct(v);
+                          try { localStorage.setItem('seros_duty_pct', String(v)); } catch {}
+                        }}
+                        style={{ width: 70, padding: '6px 10px', borderRadius: 6, border: '1px solid #CBD5E1', fontWeight: 800 }}
+                      />
+                      <span style={{ fontWeight: 800 }}>%</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. Environmental Sensor Hardware Card */}
                 <div className="module-card">
                   <h3 style={{ marginBottom: 14 }}>Environmental Sensor (ESP32-HTU21DF)</h3>
                   <div className="action-row-item">
@@ -1775,6 +2743,7 @@ export default function App() {
                   </div>
                 </div>
 
+                {/* 3. Universal AC Remote Card */}
                 <div className="module-card">
                   <h3 style={{ marginBottom: 14 }}>Universal AC Remote (IRremoteESP8266)</h3>
                   <div className="action-row-item">
@@ -1791,6 +2760,7 @@ export default function App() {
                   </div>
                 </div>
 
+                {/* 4. Vision & AI Parameters */}
                 <div className="module-card">
                   <h3 style={{ marginBottom: 14 }}>Vision & AI Parameters</h3>
                   <div className="action-row-item">
@@ -1827,7 +2797,7 @@ export default function App() {
                   </div>
                 </div>
               </div>
-            )}
+            </div>
           </div>
         )}
 
@@ -2122,134 +3092,272 @@ export default function App() {
                       preserveAspectRatio="none"
                       className="room-editor-svg"
                     >
-                      {/* Floor & Back Wall in 3D Mode */}
-                      {editorViewMode === '3d' && (
-                        <>
-                          <polygon points="12,18 88,18 96,6 4,6" className="back-wall-polygon" />
-                          <polygon points="12,18 88,18 80,88 20,88" className="floor-polygon" />
-                        </>
-                      )}
+                      {/* LAYER 1: Zone Geometries (Walls, Ceiling Roofs, Pillars, Floor Bases & Badges) */}
+                      <g className="zones-geometry-layer">
+                        {currentLayout.zones.map((z) => {
+                          const isSelected = selectedZoneId === z.id;
+                          const floorPts = z.points.map(p => [p[0] * 100, p[1] * 100]);
+                          const floorPointsStr = floorPts.map(p => `${p[0]},${p[1]}`).join(' ');
 
-                      {/* Active Layout Zones */}
-                      {currentLayout.zones.map((z) => {
-                        const isSelected = selectedZoneId === z.id;
-                        const pointsStr = z.points.map(p => `${p[0] * 100},${p[1] * 100}`).join(' ');
-                        const cx = z.points.reduce((a, b) => a + b[0] * 100, 0) / z.points.length;
-                        const cy = z.points.reduce((a, b) => a + b[1] * 100, 0) / z.points.length;
+                          // Compute 3D top ceiling points in [0, 100] coordinates
+                          let topPts: [number, number][] = [];
+                          if (z.volumetric?.top && z.volumetric.top.length === z.points.length) {
+                            topPts = z.volumetric.top.map(p => [p[0] * 100, p[1] * 100]);
+                          } else {
+                            topPts = floorPts.map(([fx, fy]) => {
+                              const wallH = 10 + 0.32 * Math.max(0, Math.min(100, fy));
+                              return [fx, Math.max(0, fy - wallH)];
+                            });
+                          }
+
+                          // 4 Vertical Pillars
+                          const pillars: [[number, number], [number, number]][] = floorPts.map((fp, i) => [
+                            [fp[0], fp[1]],
+                            [topPts[i][0], topPts[i][1]]
+                          ]);
+
+                          // 4 Vertical Wall Facets
+                          const wallFacets: [number, number][][] = [];
+                          for (let i = 0; i < floorPts.length; i++) {
+                            const next = (i + 1) % floorPts.length;
+                            wallFacets.push([floorPts[i] as [number, number], floorPts[next] as [number, number], topPts[next], topPts[i]]);
+                          }
+
+                          // 3D Centroid for floating badge
+                          const allX = [...floorPts.map(p => p[0]), ...topPts.map(p => p[0])];
+                          const allY = [...floorPts.map(p => p[1]), ...topPts.map(p => p[1])];
+                          const cx = allX.reduce((a, b) => a + b, 0) / allX.length;
+                          const cy = allY.reduce((a, b) => a + b, 0) / allY.length;
+
+                          return (
+                            <g
+                              key={z.id}
+                              className={`editor-zone-group ${isSelected ? 'selected' : ''}`}
+                              onClick={() => setSelectedZoneId(z.id)}
+                            >
+                              {/* In 3D Mode: Render 3D Walls, Ceiling Roof and Pillars */}
+                              {editorViewMode === '3d' && (
+                                <>
+                                  {/* 3D Wall Facets */}
+                                  {wallFacets.map((facet, fIdx) => (
+                                    <polygon
+                                      key={`wall-${fIdx}`}
+                                      points={facet.map(p => `${p[0]},${p[1]}`).join(' ')}
+                                      fill={z.color}
+                                      fillOpacity={isSelected ? 0.12 : 0.05}
+                                      stroke={isSelected ? '#FFFFFF' : z.color}
+                                      strokeWidth={isSelected ? '0.6' : '0.3'}
+                                      strokeLinejoin="round"
+                                      strokeDasharray={isSelected ? 'none' : '1.2, 0.8'}
+                                      style={{ cursor: 'pointer' }}
+                                    />
+                                  ))}
+
+                                  {/* Top Volumetric Ceiling Roof */}
+                                  <polygon
+                                    points={topPts.map(p => `${p[0]},${p[1]}`).join(' ')}
+                                    fill={z.color}
+                                    fillOpacity={isSelected ? 0.14 : 0.06}
+                                    stroke={isSelected ? '#FFFFFF' : z.color}
+                                    strokeWidth={isSelected ? '0.8' : '0.4'}
+                                    strokeLinejoin="round"
+                                    style={{ cursor: 'pointer' }}
+                                  />
+
+                                  {/* Vertical Corner Pillars */}
+                                  {pillars.map((pil, pIdx) => (
+                                    <line
+                                      key={`pil-${pIdx}`}
+                                      x1={pil[0][0]}
+                                      y1={pil[0][1]}
+                                      x2={pil[1][0]}
+                                      y2={pil[1][1]}
+                                      stroke={isSelected ? '#FFFFFF' : z.color}
+                                      strokeWidth={isSelected ? '0.8' : '0.4'}
+                                      strokeLinecap="round"
+                                      strokeDasharray={isSelected ? 'none' : '1.0, 0.8'}
+                                    />
+                                  ))}
+                                </>
+                              )}
+
+                              {/* Zone Floor Base Polygon */}
+                              <polygon
+                                points={floorPointsStr}
+                                fill={z.color}
+                                fillOpacity={isSelected ? 0.18 : 0.08}
+                                stroke={isSelected ? '#FFFFFF' : z.color}
+                                strokeWidth={isSelected ? '1.0' : '0.5'}
+                                style={{ cursor: 'pointer' }}
+                              />
+
+                              {/* Floating 3D Zone Name Badge with Relay & Pin */}
+                              <g style={{ pointerEvents: 'none' }}>
+                                <rect
+                                  x={cx - 7.5}
+                                  y={cy - 2.8}
+                                  width={15.0}
+                                  height={5.6}
+                                  rx={1.0}
+                                  fill="rgba(10, 15, 30, 0.88)"
+                                  stroke={z.color}
+                                  strokeWidth={isSelected ? '0.6' : '0.35'}
+                                  filter="drop-shadow(0px 2px 4px rgba(0,0,0,0.8))"
+                                />
+                                <text
+                                  x={cx}
+                                  y={cy - 0.7}
+                                  fill="#FFFFFF"
+                                  fontSize="1.8"
+                                  fontWeight="800"
+                                  textAnchor="middle"
+                                  dominantBaseline="middle"
+                                >
+                                  {z.name}
+                                </text>
+                                <text
+                                  x={cx}
+                                  y={cy + 1.4}
+                                  fill={z.color}
+                                  fontSize="1.35"
+                                  fontWeight="700"
+                                  textAnchor="middle"
+                                  dominantBaseline="middle"
+                                >
+                                  ⚡ Relay {z.relay || z.num || 1} (GPIO {getRelayPin(z.relay || z.num || 1)})
+                                </text>
+                              </g>
+                            </g>
+                          );
+                        })}
+                      </g>
+
+                      {/* LAYER 2: Unselected Zone Corner Node Indicators (Visible nodes on all zone corners) */}
+                      <g className="unselected-corner-nodes-layer">
+                        {currentLayout.zones.filter(z => z.id !== selectedZoneId).map(z => {
+                          const floorPts = z.points.map(p => [p[0] * 100, p[1] * 100]);
+                          let zTopPts: [number, number][] = [];
+                          if (z.volumetric?.top && z.volumetric.top.length === z.points.length) {
+                            zTopPts = z.volumetric.top.map(p => [p[0] * 100, p[1] * 100]);
+                          } else {
+                            zTopPts = floorPts.map(([fx, fy]) => {
+                              const wallH = 10 + 0.32 * Math.max(0, Math.min(100, fy));
+                              return [fx, Math.max(0, fy - wallH)];
+                            });
+                          }
+
+                          return (
+                            <g key={`unsel-zone-${z.id}`}>
+                              {/* Floor Nodes */}
+                              {z.points.map((p, pIdx) => (
+                                <g
+                                  key={`unsel-node-${z.id}-${pIdx}`}
+                                  style={{ cursor: 'grab' }}
+                                  onPointerDown={(e) => startDraggingPoint(e, z.id, pIdx, 'floor')}
+                                >
+                                  <title>{z.name} - Floor Corner {pIdx + 1} [{p[0].toFixed(2)}, {p[1].toFixed(2)}] • Click & drag</title>
+                                  <circle cx={p[0] * 100} cy={p[1] * 100} r="7.0" fill="transparent" style={{ touchAction: 'none' }} />
+                                  <circle
+                                    cx={p[0] * 100}
+                                    cy={p[1] * 100}
+                                    r="1.0"
+                                    fill={z.color}
+                                    stroke="#FFFFFF"
+                                    strokeWidth="0.4"
+                                    filter="drop-shadow(0 1px 2px rgba(0,0,0,0.7))"
+                                    style={{ pointerEvents: 'none' }}
+                                  />
+                                </g>
+                              ))}
+
+                              {/* 3D Ceiling Nodes */}
+                              {editorViewMode === '3d' && zTopPts.map((tp, pIdx) => (
+                                <g
+                                  key={`unsel-top-${z.id}-${pIdx}`}
+                                  style={{ cursor: 'grab' }}
+                                  onPointerDown={(e) => startDraggingPoint(e, z.id, pIdx, 'top')}
+                                >
+                                  <title>{z.name} - Ceiling Node {pIdx + 1} • Click to select & drag</title>
+                                  <circle cx={tp[0]} cy={tp[1]} r="7.0" fill="transparent" style={{ touchAction: 'none' }} />
+                                  <rect
+                                    x={tp[0] - 0.9}
+                                    y={tp[1] - 0.9}
+                                    width="1.8"
+                                    height="1.8"
+                                    rx="0.4"
+                                    transform={`rotate(45 ${tp[0]} ${tp[1]})`}
+                                    fill={z.color}
+                                    stroke="#FFFFFF"
+                                    strokeWidth="0.4"
+                                    filter="drop-shadow(0 1px 2px rgba(0,0,0,0.7))"
+                                    style={{ pointerEvents: 'none' }}
+                                  />
+                                </g>
+                              ))}
+                            </g>
+                          );
+                        })}
+                      </g>
+
+                      {/* LAYER 3: Selected Zone Handles (TOPMOST IN SVG - Zero occlusion by other zones) */}
+                      {(() => {
+                        const activeZone = currentLayout.zones.find(z => z.id === selectedZoneId);
+                        if (!activeZone) return null;
+
+                        const floorPts = activeZone.points.map(p => [p[0] * 100, p[1] * 100]);
+                        let activeTopPts: [number, number][] = [];
+                        if (activeZone.volumetric?.top && activeZone.volumetric.top.length === activeZone.points.length) {
+                          activeTopPts = activeZone.volumetric.top.map(p => [p[0] * 100, p[1] * 100]);
+                        } else {
+                          activeTopPts = floorPts.map(([fx, fy]) => {
+                            const wallH = 10 + 0.32 * Math.max(0, Math.min(100, fy));
+                            return [fx, Math.max(0, fy - wallH)];
+                          });
+                        }
 
                         return (
-                          <g
-                            key={z.id}
-                            className={`editor-zone-group ${isSelected ? 'selected' : ''}`}
-                            onClick={() => setSelectedZoneId(z.id)}
-                          >
-                            <polygon
-                              points={pointsStr}
-                              fill={z.color}
-                              fillOpacity={isSelected ? 0.48 : 0.28}
-                              stroke={isSelected ? '#FFFFFF' : z.color}
-                              strokeWidth={isSelected ? '1.8' : '1.0'}
-                              style={{ cursor: 'pointer' }}
-                            />
-                            <text
-                              x={cx}
-                              y={cy}
-                              fill="#FFFFFF"
-                              fontSize="4.2"
-                              fontWeight="800"
-                              textAnchor="middle"
-                              dominantBaseline="middle"
-                              style={{ pointerEvents: 'none', userSelect: 'none', textShadow: '0 1px 3px rgba(0,0,0,0.8)' }}
-                            >
-                              {z.name}
-                            </text>
-
-                            {/* Draggable Corner Handles for Selected Zone */}
-                            {isSelected && z.points.map((p, pIdx) => (
-                              <circle
-                                key={`pt-${pIdx}`}
-                                cx={p[0] * 100}
-                                cy={p[1] * 100}
-                                r="2.8"
-                                fill="#FFFFFF"
-                                stroke={z.color}
-                                strokeWidth="1.5"
-                                style={{ cursor: 'grab', touchAction: 'none' }}
-                                onDoubleClick={(e) => {
-                                  e.stopPropagation();
-                                  handleRemoveNodeFromZone(z.id, pIdx);
-                                }}
-                                onPointerDown={(e) => {
-                                  e.stopPropagation();
-                                  e.preventDefault();
-                                  const targetCircle = e.currentTarget;
-                                  const pointerId = e.pointerId;
-                                  try {
-                                    targetCircle.setPointerCapture(pointerId);
-                                  } catch {}
-
-                                  isDraggingRef.current = true;
-                                  draggedPointRef.current = { zoneId: z.id, pointIdx: pIdx };
-                                  setDraggedPointIndex({ zoneId: z.id, pointIdx: pIdx });
-
-                                  const targetLayoutId = currentLayout.id;
-                                  const onWindowPointerMove = (moveEvt: PointerEvent) => {
-                                    if (!svgRef.current) return;
-                                    const rect = svgRef.current.getBoundingClientRect();
-                                    if (rect.width <= 0 || rect.height <= 0) return;
-                                    const nx = Math.max(0.01, Math.min(0.99, (moveEvt.clientX - rect.left) / rect.width));
-                                    const ny = Math.max(0.01, Math.min(0.99, (moveEvt.clientY - rect.top) / rect.height));
-                                    const updatedPt: Point = [Number(nx.toFixed(3)), Number(ny.toFixed(3))];
-
-                                    setLayouts(prev => {
-                                      const nextL = prev.map(l => {
-                                        if (l.id !== targetLayoutId) return l;
-                                        return {
-                                          ...l,
-                                          zones: l.zones.map(zoneObj => {
-                                            if (zoneObj.id !== z.id) return zoneObj;
-                                            const newPoints = [...zoneObj.points] as Point[];
-                                            newPoints[pIdx] = updatedPt;
-                                            return { ...zoneObj, points: newPoints };
-                                          }),
-                                        };
-                                      });
-                                      layoutsRef.current = nextL;
-                                      return nextL;
-                                    });
-                                  };
-
-                                  const onWindowPointerUp = () => {
-                                    try {
-                                      targetCircle.releasePointerCapture(pointerId);
-                                    } catch {}
-                                    window.removeEventListener('pointermove', onWindowPointerMove);
-                                    window.removeEventListener('pointerup', onWindowPointerUp);
-                                    window.removeEventListener('pointercancel', onWindowPointerUp);
-                                    isDraggingRef.current = false;
-                                    draggedPointRef.current = null;
-                                    setDraggedPointIndex(null);
-
-                                    const targetL = layoutsRef.current.find(l => l.id === targetLayoutId) || currentLayout;
-                                    if (targetL) {
-                                      void saveLayoutToBackend(targetL);
-                                    }
-                                  };
-
-                                  window.addEventListener('pointermove', onWindowPointerMove);
-                                  window.addEventListener('pointerup', onWindowPointerUp);
-                                  window.addEventListener('pointercancel', onWindowPointerUp);
-                                }}
-
+                          <g className="selected-zone-handles-overlay">
+                            {/* 1. 3D CEILING ROOF CORNER HANDLES */}
+                            {editorViewMode === '3d' && activeTopPts.map((tp, pIdx) => (
+                              <g
+                                key={`active-top-handle-${pIdx}`}
+                                style={{ cursor: 'grab' }}
+                                onPointerDown={(e) => startDraggingPoint(e, activeZone.id, pIdx, 'top')}
                               >
-                                <title>Drag to adjust shape • Double-click to remove node</title>
-                              </circle>
+                                <title>{activeZone.name} - Ceiling Corner {pIdx + 1} [{tp[0].toFixed(1)}, {tp[1].toFixed(1)}] • Drag to adjust ceiling height & wall perspective</title>
+                                <circle
+                                  cx={tp[0]}
+                                  cy={tp[1]}
+                                  r="7.0"
+                                  fill="transparent"
+                                  style={{ touchAction: 'none' }}
+                                />
+                                <rect
+                                  x={tp[0] - 1.4}
+                                  y={tp[1] - 1.4}
+                                  width="2.8"
+                                  height="2.8"
+                                  rx="0.5"
+                                  transform={`rotate(45 ${tp[0]} ${tp[1]})`}
+                                  fill="#FFFFFF"
+                                  stroke={activeZone.color}
+                                  strokeWidth="0.6"
+                                  filter="drop-shadow(0 1px 3px rgba(0,0,0,0.85))"
+                                  style={{ pointerEvents: 'none' }}
+                                />
+                                <circle
+                                  cx={tp[0]}
+                                  cy={tp[1]}
+                                  r="0.5"
+                                  fill={activeZone.color}
+                                  style={{ pointerEvents: 'none' }}
+                                />
+                              </g>
                             ))}
 
-
-                            {/* Midpoint Split Handles between adjacent vertices to add nodes */}
-                            {isSelected && z.points.map((p, pIdx) => {
-                              const nextP = z.points[(pIdx + 1) % z.points.length];
+                            {/* 2. Midpoint Split '+' Handles */}
+                            {activeZone.points.map((p, pIdx) => {
+                              const nextP = activeZone.points[(pIdx + 1) % activeZone.points.length];
                               const mx = (p[0] + nextP[0]) / 2;
                               const my = (p[1] + nextP[1]) / 2;
                               return (
@@ -2258,24 +3366,24 @@ export default function App() {
                                   style={{ cursor: 'pointer' }}
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    handleAddNodeToZone(z.id, pIdx + 1, [mx, my]);
+                                    handleAddNodeToZone(activeZone.id, pIdx + 1, [mx, my]);
                                   }}
                                 >
-                                  <title>Click '+' to add a new corner node along this edge</title>
+                                  <title>Click '+' to insert a new corner node along this edge</title>
                                   <circle
                                     cx={mx * 100}
                                     cy={my * 100}
-                                    r="2.2"
+                                    r="1.2"
                                     fill="#006934"
                                     stroke="#FFFFFF"
-                                    strokeWidth="1.1"
-                                    style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.5))' }}
+                                    strokeWidth="0.4"
+                                    filter="drop-shadow(0 1px 2px rgba(0,0,0,0.6))"
                                   />
                                   <text
                                     x={mx * 100}
                                     y={my * 100}
                                     fill="#FFFFFF"
-                                    fontSize="2.4"
+                                    fontSize="1.4"
                                     fontWeight="900"
                                     textAnchor="middle"
                                     dominantBaseline="central"
@@ -2286,9 +3394,48 @@ export default function App() {
                                 </g>
                               );
                             })}
+
+                            {/* 3. FLOOR BASE DRAGGABLE CORNER HANDLES */}
+                            {activeZone.points.map((p, pIdx) => (
+                              <g
+                                key={`active-floor-handle-${pIdx}`}
+                                style={{ cursor: 'grab' }}
+                                onPointerDown={(e) => startDraggingPoint(e, activeZone.id, pIdx, 'floor')}
+                                onDoubleClick={(e) => {
+                                  e.stopPropagation();
+                                  handleRemoveNodeFromZone(activeZone.id, pIdx);
+                                }}
+                              >
+                                <title>{activeZone.name} - Floor Corner {pIdx + 1} [{p[0].toFixed(2)}, {p[1].toFixed(2)}] • Drag to adjust • Double-click to delete</title>
+                                <circle
+                                  cx={p[0] * 100}
+                                  cy={p[1] * 100}
+                                  r="7.0"
+                                  fill="transparent"
+                                  style={{ touchAction: 'none' }}
+                                />
+                                <circle
+                                  cx={p[0] * 100}
+                                  cy={p[1] * 100}
+                                  r="1.6"
+                                  fill="#FFFFFF"
+                                  stroke={activeZone.color}
+                                  strokeWidth="0.6"
+                                  filter="drop-shadow(0 1px 3px rgba(0,0,0,0.85))"
+                                  style={{ pointerEvents: 'none' }}
+                                />
+                                <circle
+                                  cx={p[0] * 100}
+                                  cy={p[1] * 100}
+                                  r="0.6"
+                                  fill={activeZone.color}
+                                  style={{ pointerEvents: 'none' }}
+                                />
+                              </g>
+                            ))}
                           </g>
                         );
-                      })}
+                      })()}
                     </svg>
                   </div>
 
@@ -2328,7 +3475,32 @@ export default function App() {
 
                     {/* Zone list with Assigned Relay dropdowns */}
                     <div className="palette-zones-container" style={{ marginTop: 12 }}>
-                      <div className="palette-section-title">ZONES & ASSIGNED RELAYS</div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                        <div className="palette-section-title" style={{ margin: 0 }}>ZONES & ASSIGNED RELAYS</div>
+                        {editorViewMode === '3d' && (
+                          <button
+                            type="button"
+                            onClick={handleAlignAllZonesPillars}
+                            title="Auto-align 3D ceiling pillars to floor footprints for all zones"
+                            style={{
+                              background: 'rgba(59, 130, 246, 0.15)',
+                              border: '1px solid rgba(59, 130, 246, 0.4)',
+                              borderRadius: 4,
+                              color: '#93C5FD',
+                              fontSize: 10,
+                              fontWeight: 600,
+                              padding: '2px 6px',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 4
+                            }}
+                          >
+                            <Icon name="auto_fix_high" size={12} color="#93C5FD" />
+                            <span>Align All 3D</span>
+                          </button>
+                        )}
+                      </div>
                       {currentLayout.zones.map((z) => {
                         const isSel = selectedZoneId === z.id;
                         return (
@@ -2379,6 +3551,91 @@ export default function App() {
                                 <option value={8}>Relay 8 (Aux 8)</option>
                               </select>
                             </div>
+
+                            {/* Corner Nodes Coordinates Inspector for Selected Zone */}
+                            {isSel && (
+                              <div style={{ marginTop: 8, padding: '7px 9px', background: 'rgba(255,255,255,0.04)', borderRadius: 6, border: '1px solid rgba(255,255,255,0.08)' }}>
+                                <div style={{ fontSize: 10, fontWeight: 700, color: '#94A3B8', marginBottom: 5, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <span>FLOOR NODES ({z.points.length})</span>
+                                  <span style={{ color: '#00E676', fontSize: 9 }}>● Magnetic Snap On</span>
+                                </div>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 4 }}>
+                                  {z.points.map((pt, pIdx) => (
+                                    <div
+                                      key={`floor-badge-${pIdx}`}
+                                      style={{
+                                        fontSize: 9,
+                                        fontFamily: 'monospace',
+                                        color: '#CBD5E1',
+                                        background: 'rgba(0,0,0,0.3)',
+                                        padding: '3px 6px',
+                                        borderRadius: 4,
+                                        display: 'flex',
+                                        justifyContent: 'space-between'
+                                      }}
+                                    >
+                                      <span style={{ color: z.color, fontWeight: 700 }}>F{pIdx + 1}:</span>
+                                      <span>[{pt[0].toFixed(2)}, {pt[1].toFixed(2)}]</span>
+                                    </div>
+                                  ))}
+                                </div>
+
+                                {editorViewMode === '3d' && (
+                                  <>
+                                    <div style={{ fontSize: 10, fontWeight: 700, color: '#94A3B8', marginTop: 8, marginBottom: 5, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                      <span>3D CEILING CORNERS (◆)</span>
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleAlignZonePillars(z.id);
+                                        }}
+                                        title="Snap 3D ceiling corners directly vertically above floor base"
+                                        style={{
+                                          background: 'rgba(16, 185, 129, 0.15)',
+                                          border: '1px solid rgba(16, 185, 129, 0.4)',
+                                          borderRadius: 4,
+                                          color: '#6EE7B7',
+                                          fontSize: 9,
+                                          fontWeight: 600,
+                                          padding: '2px 5px',
+                                          cursor: 'pointer',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          gap: 3
+                                        }}
+                                      >
+                                        <Icon name="vertical_align_top" size={11} color="#6EE7B7" />
+                                        <span>Align Walls</span>
+                                      </button>
+                                    </div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 4 }}>
+                                      {(z.volumetric?.top && z.volumetric.top.length === z.points.length
+                                        ? z.volumetric.top
+                                        : z.points.map(([fx, fy]) => [fx, Math.max(0, fy - 0.15)] as Point)
+                                      ).map((pt, pIdx) => (
+                                        <div
+                                          key={`top-badge-${pIdx}`}
+                                          style={{
+                                            fontSize: 9,
+                                            fontFamily: 'monospace',
+                                            color: '#93C5FD',
+                                            background: 'rgba(30,58,138,0.25)',
+                                            padding: '3px 6px',
+                                            borderRadius: 4,
+                                            display: 'flex',
+                                            justifyContent: 'space-between'
+                                          }}
+                                        >
+                                          <span style={{ color: '#60A5FA', fontWeight: 700 }}>C{pIdx + 1}:</span>
+                                          <span>[{pt[0].toFixed(2)}, {pt[1].toFixed(2)}]</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                            )}
                           </div>
                         );
                       })}
@@ -2694,16 +3951,38 @@ export default function App() {
               </p>
 
               <div className="form-group">
+                <label className="form-label">NUMBER OF ROOM QUADRANTS / ZONES</label>
+                <div className="stepper-count-row">
+                  {[
+                    { count: 2, label: '2 Zones' },
+                    { count: 3, label: '3 Zones' },
+                    { count: 4, label: '4 Zones (Default)' },
+                    { count: 6, label: '6 Zones (2x3)' },
+                    { count: 8, label: '8 Zones (2x4)' },
+                  ].map(item => (
+                    <button
+                      key={item.count}
+                      type="button"
+                      className={`btn-count-chip ${aiNumZones === item.count ? 'active' : ''}`}
+                      onClick={() => setAiNumZones(item.count)}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="form-group">
                 <label className="form-label">NUMBER OF LIGHTS IN ROOM</label>
                 <div className="stepper-count-row">
-                  {[2, 4, 6, 8].map(n => (
+                  {[1, 2, 4, 6, 8].map(n => (
                     <button
                       key={n}
                       type="button"
                       className={`btn-count-chip ${aiNumLights === n ? 'active' : ''}`}
                       onClick={() => setAiNumLights(n)}
                     >
-                      {n} Lights
+                      {n} {n === 1 ? 'Light' : 'Lights'}
                     </button>
                   ))}
                 </div>
@@ -2712,14 +3991,14 @@ export default function App() {
               <div className="form-group">
                 <label className="form-label">NUMBER OF FANS</label>
                 <div className="stepper-count-row">
-                  {[1, 2, 4].map(n => (
+                  {[0, 1, 2, 4, 6].map(n => (
                     <button
                       key={n}
                       type="button"
                       className={`btn-count-chip ${aiNumFans === n ? 'active' : ''}`}
                       onClick={() => setAiNumFans(n)}
                     >
-                      {n} Fans
+                      {n === 0 ? 'No Fans' : `${n} Fans`}
                     </button>
                   ))}
                 </div>
@@ -2728,7 +4007,7 @@ export default function App() {
               <div className="form-group">
                 <label className="form-label">AIR CONDITIONER UNITS</label>
                 <div className="stepper-count-row">
-                  {[0, 1, 2].map(n => (
+                  {[0, 1, 2, 4].map(n => (
                     <button
                       key={n}
                       type="button"
@@ -2736,6 +4015,27 @@ export default function App() {
                       onClick={() => setAiNumAcs(n)}
                     >
                       {n === 0 ? 'None' : `${n} AC`}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">EQUIPMENT LOCATION & PLACEMENT STRATEGY</label>
+                <div className="stepper-count-row">
+                  {[
+                    { id: 'quadrant', label: 'Quadrant-Distributed' },
+                    { id: 'perimeter', label: 'Perimeter Walls' },
+                    { id: 'front_loaded', label: 'Front-Loaded Focus' },
+                    { id: 'uniform', label: 'Uniform Grid' },
+                  ].map(opt => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      className={`btn-count-chip ${aiEquipmentPlacement === opt.id ? 'active' : ''}`}
+                      onClick={() => setAiEquipmentPlacement(opt.id as any)}
+                    >
+                      {opt.label}
                     </button>
                   ))}
                 </div>

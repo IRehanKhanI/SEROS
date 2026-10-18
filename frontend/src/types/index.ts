@@ -60,6 +60,7 @@ export interface DetectedPerson {
 
 export interface Zone {
   id: string;
+  num?: number;
   name: string;
   statusText: string;
   isOccupied: boolean;
