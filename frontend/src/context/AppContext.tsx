@@ -13,7 +13,7 @@ import {
   RoomLayout
 } from '../types';
 import { serosApi } from '../api/serosApi';
-import { BACKEND_URL_STORAGE_KEY, DEFAULT_BACKEND_URL } from '../config';
+import { BACKEND_URL_STORAGE_KEY, DEFAULT_BACKEND_URL, DEFAULT_ESP32_URL, ESP32_URL_STORAGE_KEY } from '../config';
 
 interface AppContextType {
   currentView: ScreenView;
@@ -30,6 +30,10 @@ interface AppContextType {
     category: 'lights' | 'fans' | 'ac';
     relay?: number;
     power_watts?: number;
+    vendor?: string;
+    target_temperature?: number;
+    mode?: string;
+    fan?: string;
   }) => Promise<Device>;
   updateDevice: (
     id: string,
@@ -40,6 +44,11 @@ interface AppContextType {
       quadrants?: number[];
       relay?: number;
       power_watts?: number;
+      vendor?: string;
+      protocol?: string;
+      target_temperature?: number;
+      mode?: string;
+      fan?: string;
     }
   ) => Promise<Device>;
   deleteDevice: (id: string) => Promise<void>;
@@ -74,6 +83,8 @@ interface AppContextType {
   triggerDiagnosticsPing: () => Promise<number>;
   backendUrl: string;
   setBackendUrl: (url: string) => void;
+  esp32Url: string;
+  setEsp32Url: (url: string) => void;
   backendConnected: boolean;
   sensorData: SensorData;
   activeLayoutId: string;
@@ -87,6 +98,7 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [backendUrl, setBackendUrlState] = useState<string>(DEFAULT_BACKEND_URL);
+  const [esp32Url, setEsp32UrlState] = useState<string>(DEFAULT_ESP32_URL);
 
   const setBackendUrl = (url: string) => {
     const clean = url.trim().replace(/\/+$/, '') || DEFAULT_BACKEND_URL;
@@ -94,11 +106,32 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     void AsyncStorage.setItem(BACKEND_URL_STORAGE_KEY, clean);
   };
 
+  const setEsp32Url = (url: string) => {
+    let clean = url.trim().replace(/\/+$/, '') || DEFAULT_ESP32_URL;
+    if (!clean.startsWith('http://') && !clean.startsWith('https://')) {
+      clean = `http://${clean}`;
+    }
+    setEsp32UrlState(clean);
+    void AsyncStorage.setItem(ESP32_URL_STORAGE_KEY, clean);
+    serosApi.setEsp32Ip(backendUrl, clean).catch(() => undefined);
+  };
+
   useEffect(() => {
     void AsyncStorage.getItem(BACKEND_URL_STORAGE_KEY).then(saved => {
       if (saved?.trim()) setBackendUrlState(saved.trim().replace(/\/+$/, ''));
     });
-  }, []);
+    void AsyncStorage.getItem(ESP32_URL_STORAGE_KEY).then(saved => {
+      if (saved?.trim()) {
+        const clean = saved.trim().replace(/\/+$/, '');
+        setEsp32UrlState(clean);
+        serosApi.setEsp32Ip(backendUrl, clean).catch(() => undefined);
+      } else {
+        serosApi.getEsp32Ip(backendUrl).then(res => {
+          if (res?.url) setEsp32UrlState(res.url);
+        }).catch(() => undefined);
+      }
+    });
+  }, [backendUrl]);
 
   const [currentView, setCurrentView] = useState<ScreenView>('home');
   const [devices, setDevices] = useState<Device[]>([]);
@@ -239,6 +272,64 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     };
   }, [backendUrl]);
 
+  // Direct ESP32 Physical Remote & Relay Sync (Immediate mini remote override detection)
+  useEffect(() => {
+    let active = true;
+    const syncEsp32Hardware = async () => {
+      if (!esp32Url) return;
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 1400);
+        const res = await fetch(`${esp32Url.replace(/\/+$/, '')}/api/status`, {
+          signal: controller.signal,
+          headers: { Accept: 'application/json' },
+        });
+        clearTimeout(timeoutId);
+        if (res.ok && active) {
+          const espData = await res.json();
+          if (espData && Array.isArray(espData.relays)) {
+            setDevices(prev => prev.map(d => {
+              if (d.category === 'ac' && typeof espData.ac_power === 'boolean') {
+                const acOn = espData.ac_power;
+                const nextStatus = acOn ? 'ON' : 'OFF';
+                if (d.status !== nextStatus || (espData.ac_temperature && d.targetTemperature !== espData.ac_temperature)) {
+                  return {
+                    ...d,
+                    status: nextStatus,
+                    targetTemperature: espData.ac_temperature ?? d.targetTemperature,
+                    vendor: espData.ac_protocol || d.vendor,
+                    protocol: espData.ac_protocol || d.protocol,
+                    mode: espData.ac_mode || d.mode,
+                    fan: espData.ac_fan || d.fan,
+                  };
+                }
+              } else {
+                const r = d.relay || (d.quadrantNum ?? (d.quadrants?.[0] ?? 1));
+                if (r >= 1 && r <= 4 && typeof espData.relays[r - 1] === 'boolean') {
+                  const relayOn = espData.relays[r - 1];
+                  const nextStatus = relayOn ? 'ON' : 'OFF';
+                  if (d.status !== nextStatus) {
+                    return {
+                      ...d,
+                      status: nextStatus,
+                    };
+                  }
+                }
+              }
+              return d;
+            }));
+          }
+        }
+      } catch {}
+    };
+    syncEsp32Hardware();
+    const espTimer = setInterval(syncEsp32Hardware, 2000);
+    return () => {
+      active = false;
+      clearInterval(espTimer);
+    };
+  }, [esp32Url]);
+
   // Apply visual settings to document body (web only)
 
   useEffect(() => {
@@ -336,6 +427,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     category: 'lights' | 'fans' | 'ac';
     relay?: number;
     power_watts?: number;
+    vendor?: string;
+    target_temperature?: number;
+    mode?: string;
+    fan?: string;
   }) => {
     try {
       const created = await serosApi.addDevice(backendUrl, payload);
@@ -371,6 +466,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       quadrants?: number[];
       relay?: number;
       power_watts?: number;
+      vendor?: string;
+      protocol?: string;
+      target_temperature?: number;
+      mode?: string;
+      fan?: string;
     }
   ) => {
     try {
@@ -699,6 +799,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         triggerDiagnosticsPing,
         backendUrl,
         setBackendUrl,
+        esp32Url,
+        setEsp32Url,
         backendConnected,
         sensorData,
         activeLayoutId,

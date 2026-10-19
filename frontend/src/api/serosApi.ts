@@ -135,6 +135,10 @@ export const serosApi = {
       category: 'lights' | 'fans' | 'ac';
       relay?: number;
       power_watts?: number;
+      vendor?: string;
+      target_temperature?: number;
+      mode?: string;
+      fan?: string;
     }
   ) {
     const res = await fetch(`${baseUrl.replace(/\/+$/, '')}/api/devices/`, {
@@ -157,6 +161,11 @@ export const serosApi = {
       quadrants?: number[];
       relay?: number;
       power_watts?: number;
+      vendor?: string;
+      protocol?: string;
+      target_temperature?: number;
+      mode?: string;
+      fan?: string;
     }
   ) {
     const res = await fetch(`${baseUrl.replace(/\/+$/, '')}/api/devices/${encodeURIComponent(deviceId)}/update/`, {
@@ -423,6 +432,89 @@ export const serosApi = {
   }> {
     const cleanUrl = baseUrl.replace(/\/+$/, '');
     const res = await fetch(`${cleanUrl}/api/sensor/`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  },
+
+  // 17. Universal AC IR Remote Controller
+  async getAcStatus(baseUrl: string) {
+    const cleanUrl = baseUrl.replace(/\/+$/, '');
+    const res = await fetch(`${cleanUrl}/api/ac/status/`).catch(() => null);
+    if (res && res.ok) return await res.json();
+    return null;
+  },
+
+  async learnAc(baseUrl: string) {
+    const cleanUrl = baseUrl.replace(/\/+$/, '');
+    const res = await fetch(`${cleanUrl}/api/ac/learn/`, { method: 'POST' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  },
+
+  async cancelAcLearn(baseUrl: string) {
+    const cleanUrl = baseUrl.replace(/\/+$/, '');
+    const res = await fetch(`${cleanUrl}/api/ac/cancel/`, { method: 'POST' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  },
+
+  async setAcVendor(baseUrl: string, vendor: string) {
+    const cleanUrl = baseUrl.replace(/\/+$/, '');
+    const res = await fetch(`${cleanUrl}/api/ac/vendor/?vendor=${encodeURIComponent(vendor)}`, { method: 'POST' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  },
+
+  async setAcPower(baseUrl: string, on: boolean) {
+    const cleanUrl = baseUrl.replace(/\/+$/, '');
+    const res = await fetch(`${cleanUrl}/api/ac/power/?on=${on ? 1 : 0}`, { method: 'POST' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  },
+
+  async setAcTemp(baseUrl: string, temp: number) {
+    const cleanUrl = baseUrl.replace(/\/+$/, '');
+    const res = await fetch(`${cleanUrl}/api/ac/temp/?value=${temp}`, { method: 'POST' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  },
+
+  async setAcMode(baseUrl: string, mode: string) {
+    const cleanUrl = baseUrl.replace(/\/+$/, '');
+    const res = await fetch(`${cleanUrl}/api/ac/mode/?mode=${encodeURIComponent(mode)}`, { method: 'POST' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  },
+
+  async setAcFan(baseUrl: string, fan: string) {
+    const cleanUrl = baseUrl.replace(/\/+$/, '');
+    const res = await fetch(`${cleanUrl}/api/ac/fan/?fan=${encodeURIComponent(fan)}`, { method: 'POST' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  },
+
+  async sendAcState(baseUrl: string) {
+    const cleanUrl = baseUrl.replace(/\/+$/, '');
+    const res = await fetch(`${cleanUrl}/api/ac/send/`, { method: 'POST' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  },
+
+  // 18. ESP32 Node LAN Address
+  async getEsp32Ip(baseUrl: string): Promise<{ status: string; url: string; ip: string } | null> {
+    const cleanUrl = baseUrl.replace(/\/+$/, '');
+    const res = await fetch(`${cleanUrl}/api/esp32/ip/`).catch(() => null);
+    if (res && res.ok) return await res.json();
+    return null;
+  },
+
+  async setEsp32Ip(baseUrl: string, ipOrUrl: string): Promise<{ status: string; url: string; ip: string }> {
+    const cleanUrl = baseUrl.replace(/\/+$/, '');
+    const res = await fetch(`${cleanUrl}/api/esp32/ip/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ip: ipOrUrl }),
+    });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.json();
   },

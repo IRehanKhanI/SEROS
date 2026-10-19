@@ -6,7 +6,7 @@
  * 2. Environmental Sensor Telemetry (Adafruit HTU21DF on I2C SDA=21, SCL=22)
  * 3. Universal IR AC Remote (Auto-detect & 28 Vendor Protocols via IRremoteESP8266)
  * 4. Raw IR Record & Replay (4 Fallback Slots for Unsupported Remotes)
- * 5. Direct Web Browser Dashboard (http://192.168.137.52)
+ * 5. Direct Web Browser Dashboard (http://192.168.137.97)
  * 6. Full REST API with CORS for Django Backend, React Web UI & React Native Mobile App
  *
  * Hardware Wiring:
@@ -31,13 +31,13 @@
 #include <IRac.h>
 
 // ================= USER CONFIGURATION =================
-const char* WIFI_SSID   = "Marshal027";
-const char* WIFI_PASS   = "@scorpio21";
+const char* WIFI_SSID   = "RehanLP"; // Matches Windows Laptop Mobile Hotspot
+const char* WIFI_PASS   = "12345678";
 const char* DEVICE_NAME = "SEROS-ESP32";
 
 // Relay Hardware Mapping (Relay 1-4 for Quadrants 1-4)
 const uint16_t relayPins[4] = {16, 17, 18, 19};
-const bool ACTIVE_LOW       = true;
+const bool ACTIVE_LOW       = false;
 
 // IR Hardware Pins
 const uint16_t kRecvPin  = 14; // IR receiver signal pin
@@ -123,7 +123,7 @@ void setRelay(uint8_t index, bool on) {
 }
 
 void setupAcDefaults() {
-  ac.next.protocol = decode_type_t::UNKNOWN;
+  ac.next.protocol = decode_type_t::MITSUBISHI_AC; // Default ready protocol
   ac.next.model    = -1;
   ac.next.mode     = stdAc::opmode_t::kCool;
   ac.next.power    = false;
@@ -141,6 +141,7 @@ void setupAcDefaults() {
   ac.next.beep     = false;
   ac.next.sleep    = -1;
   ac.next.clock    = -1;
+  protocolReady    = true;
 }
 
 void startLearn(int8_t target) {
@@ -157,7 +158,7 @@ void startLearn(int8_t target) {
 
 void stopLearn() {
   learnTarget = LEARN_NONE;
-  irrecv.disableIRIn();
+  irrecv.enableIRIn(); // Keep receiver active for physical remote manual override
 }
 
 void sendState() {
@@ -166,7 +167,13 @@ void sendState() {
     return;
   }
   if (learnTarget != LEARN_NONE) stopLearn();
+
+  // Temporarily disable receiver so it does not pick up its own transmitted IR LED bursts
+  irrecv.disableIRIn();
   bool ok = ac.sendAc();
+  delay(120);
+  irrecv.enableIRIn();
+
   statusMessage = String(ok ? "AC Command Sent: " : "AC Send FAILED: ") +
                   typeToString(ac.next.protocol) +
                   ", Power: " + (ac.next.power ? "ON" : "OFF") +
@@ -175,8 +182,134 @@ void sendState() {
   Serial.println("[IR] " + statusMessage);
 }
 
+void handleMiniRemoteOverride(decode_results *res) {
+  uint32_t val = (uint32_t)(res->value & 0xFFFFFFFF);
+  uint8_t cmd = res->command;
+
+  Serial.printf("\n[IR REMOTE] Protocol: %s, Command: 0x%02X, Value: 0x%08X\n",
+                typeToString(res->decode_type).c_str(), cmd, val);
+
+  // Button UP (▲): AC Target Temperature + 1°C
+  if (val == 0xFF18E7 || (cmd == 0x18 && val != 0xFF629D) || (cmd == 0x40 && val == 0xFF02FD) || cmd == 0x09) {
+    if (ac.next.degrees < 30) ac.next.degrees++;
+    ac.next.power = true;
+    sendState();
+    statusMessage = "Manual Override: AC Temp -> " + String((int)ac.next.degrees) + "C";
+    Serial.println("[OVERRIDE] " + statusMessage);
+    return;
+  }
+
+  // Button DOWN (▼): AC Target Temperature - 1°C
+  if (val == 0xFF52AD || val == 0xFF4AB5 || (cmd == 0x52 && val != 0xFF9867) || cmd == 0x4A) {
+    if (ac.next.degrees > 16) ac.next.degrees--;
+    ac.next.power = true;
+    sendState();
+    statusMessage = "Manual Override: AC Temp -> " + String((int)ac.next.degrees) + "C";
+    Serial.println("[OVERRIDE] " + statusMessage);
+    return;
+  }
+
+  // Button LEFT (◄): Cycle AC Operating Mode (Cool -> Heat -> Dry -> Fan -> Auto)
+  if (val == 0xFF10EF || (cmd == 0x08 && val != 0xFF22DD)) {
+    if (ac.next.mode == stdAc::opmode_t::kCool) ac.next.mode = stdAc::opmode_t::kHeat;
+    else if (ac.next.mode == stdAc::opmode_t::kHeat) ac.next.mode = stdAc::opmode_t::kDry;
+    else if (ac.next.mode == stdAc::opmode_t::kDry) ac.next.mode = stdAc::opmode_t::kFan;
+    else if (ac.next.mode == stdAc::opmode_t::kFan) ac.next.mode = stdAc::opmode_t::kAuto;
+    else ac.next.mode = stdAc::opmode_t::kCool;
+    ac.next.power = true;
+    sendState();
+    statusMessage = "Manual Override: AC Mode -> " + modeToString(ac.next.mode);
+    Serial.println("[OVERRIDE] " + statusMessage);
+    return;
+  }
+
+  // Button RIGHT (►): Cycle AC Fan (Auto -> Low -> Med -> High)
+  if (val == 0xFF5AA5 || (cmd == 0x5A && val != 0xFFB04F)) {
+    if (ac.next.fanspeed == stdAc::fanspeed_t::kAuto) ac.next.fanspeed = stdAc::fanspeed_t::kLow;
+    else if (ac.next.fanspeed == stdAc::fanspeed_t::kLow) ac.next.fanspeed = stdAc::fanspeed_t::kMedium;
+    else if (ac.next.fanspeed == stdAc::fanspeed_t::kMedium) ac.next.fanspeed = stdAc::fanspeed_t::kHigh;
+    else ac.next.fanspeed = stdAc::fanspeed_t::kAuto;
+    sendState();
+    statusMessage = "Manual Override: AC Fan -> " + fanToString(ac.next.fanspeed);
+    Serial.println("[OVERRIDE] " + statusMessage);
+    return;
+  }
+
+  // Button OK: Toggle AC Power via IR Transmitter (GPIO 4)
+  if (val == 0xFF38C7 || cmd == 0x1C || cmd == 0x38) {
+    ac.next.power = !ac.next.power;
+    sendState();
+    statusMessage = String("Manual Override: AC Power ") + (ac.next.power ? "ON" : "OFF");
+    Serial.println("[OVERRIDE] " + statusMessage);
+    return;
+  }
+
+  // Button 1: Toggle Relay 1 / Quadrant 1 (Light)
+  if (val == 0xFFA25D || val == 0xFF30CF || cmd == 0x45 || cmd == 0x0C || cmd == 0xA2) {
+    setRelay(0, !relays[0]);
+    statusMessage = String("Manual Override: Quadrant 1 Light ") + (relays[0] ? "ON" : "OFF");
+    Serial.println("[OVERRIDE] " + statusMessage);
+    return;
+  }
+
+  // Button 2: Toggle Relay 2 / Quadrant 2 (Light)
+  if (val == 0xFF629D || cmd == 0x46 || cmd == 0x62) {
+    setRelay(1, !relays[1]);
+    statusMessage = String("Manual Override: Quadrant 2 Light ") + (relays[1] ? "ON" : "OFF");
+    Serial.println("[OVERRIDE] " + statusMessage);
+    return;
+  }
+
+  // Button 3: Toggle Relay 3 / Quadrant 3 (Fan / Light)
+  if (val == 0xFFE21D || val == 0xFF7A85 || cmd == 0x47 || cmd == 0x5E || cmd == 0xE2) {
+    setRelay(2, !relays[2]);
+    statusMessage = String("Manual Override: Quadrant 3 ") + (relays[2] ? "ON" : "OFF");
+    Serial.println("[OVERRIDE] " + statusMessage);
+    return;
+  }
+
+  // Button 4: Toggle Relay 4 / Quadrant 4 (Fan / Light)
+  if (val == 0xFF22DD || cmd == 0x44 || cmd == 0x22) {
+    setRelay(3, !relays[3]);
+    statusMessage = String("Manual Override: Quadrant 4 ") + (relays[3] ? "ON" : "OFF");
+    Serial.println("[OVERRIDE] " + statusMessage);
+    return;
+  }
+
+  // Button 0 or Button * : Master Power Toggle (All Relays ON/OFF)
+  if (val == 0xFF9867 || val == 0xFF6897 || val == 0xFF42BD || val == 0xFF00FF ||
+      cmd == 0x19 || cmd == 0x16 || cmd == 0x68 || cmd == 0x98 || cmd == 0x42 || cmd == 0x48) {
+    bool anyOn = relays[0] || relays[1] || relays[2] || relays[3];
+    bool target = !anyOn;
+    for (uint8_t i = 0; i < 4; ++i) setRelay(i, target);
+    statusMessage = String("Manual Override: All Relays ") + (target ? "ON" : "OFF");
+    Serial.println("[OVERRIDE] " + statusMessage);
+    return;
+  }
+
+  // Button # : Resend Current AC State
+  if (val == 0xFFB04F || cmd == 0x0D || cmd == 0xB0) {
+    sendState();
+    statusMessage = "Manual Override: AC Resend Triggered";
+    Serial.println("[OVERRIDE] " + statusMessage);
+    return;
+  }
+}
+
 void checkIRReceiver() {
-  if (learnTarget == LEARN_NONE) return;
+  if (learnTarget == LEARN_NONE) {
+    // Continuous manual override listening
+    if (!irrecv.decode(&results)) return;
+    static unsigned long lastIrTime = 0;
+    if (results.repeat && millis() - lastIrTime < 300) {
+      irrecv.resume();
+      return;
+    }
+    handleMiniRemoteOverride(&results);
+    lastIrTime = millis();
+    irrecv.resume();
+    return;
+  }
 
   if (millis() - learnStarted > kLearnTimeoutMs) {
     stopLearn();
@@ -829,11 +962,13 @@ void setup() {
   setupAcDefaults();
   irsend.begin();
   irrecv.setUnknownThreshold(kMinUnknownSize);
+  irrecv.enableIRIn(); // Arm IR receiver continuously on GPIO 14 for remote manual override
+  Serial.println("[SEROS] IR Receiver armed on GPIO 14 (Mini Remote Manual Override Active)");
 
   // Connect to Wi-Fi with Static IP configuration
   WiFi.mode(WIFI_STA);
 
-  IPAddress local_IP(192, 168, 137, 52);
+  IPAddress local_IP(192, 168, 137, 97);
   IPAddress gateway(192, 168, 137, 1);
   IPAddress subnet(255, 255, 255, 0);
   IPAddress primaryDNS(8, 8, 8, 8);
@@ -842,19 +977,35 @@ void setup() {
   }
 
   WiFi.begin(WIFI_SSID, WIFI_PASS);
-  Serial.printf("[SEROS] Connecting to Wi-Fi '%s'...", WIFI_SSID);
+  Serial.printf("[SEROS] Connecting to Wi-Fi '%s' (Static IP: 192.168.137.97)...", WIFI_SSID);
   unsigned long started = millis();
-  while (WiFi.status() != WL_CONNECTED && millis() - started < 30000) {
+  while (WiFi.status() != WL_CONNECTED && millis() - started < 15000) {
     delay(250);
     Serial.print(".");
   }
+
+  // Fallback to DHCP if static IP is not accepted by Windows Mobile Hotspot
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("\n[SEROS] Static IP timed out. Attempting DHCP connection...");
+    WiFi.disconnect();
+    delay(400);
+    WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE); // Force DHCP
+    WiFi.begin(WIFI_SSID, WIFI_PASS);
+    started = millis();
+    while (WiFi.status() != WL_CONNECTED && millis() - started < 15000) {
+      delay(250);
+      Serial.print(".");
+    }
+  }
+
   Serial.println();
   if (WiFi.status() == WL_CONNECTED) {
     Serial.print("[SEROS] Wi-Fi Connected! IP Address: ");
     Serial.println(WiFi.localIP());
     Serial.printf("[SEROS] Browser Dashboard: http://%s/\n", WiFi.localIP().toString().c_str());
   } else {
-    Serial.println("[SEROS] Wi-Fi connection timed out. Will auto-retry in loop.");
+    Serial.println("[SEROS] ⚠️ Wi-Fi connection timed out. Will auto-retry in loop.");
+    Serial.println("[SEROS] 💡 NOTE: In Windows Mobile Hotspot settings, ensure 'Network band' is set to '2.4 GHz' (ESP32 only supports 2.4 GHz).");
   }
 
   // ---------------- Web Server Routing ----------------

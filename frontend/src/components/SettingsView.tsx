@@ -5,15 +5,22 @@ import { Icon } from './Icon';
 import { colors } from '../theme/colors';
 
 export const SettingsView: React.FC = () => {
-  const { settings, updateSettings, setBackendVerifiedNotice, speakText, backendUrl, setBackendUrl } = useApp();
+  const { settings, updateSettings, setBackendVerifiedNotice, speakText, backendUrl, setBackendUrl, esp32Url, setEsp32Url } = useApp();
 
   const [diagRunning, setDiagRunning] = useState(false);
   const [diagToast, setDiagToast] = useState<string | null>(null);
   const [backendDraft, setBackendDraft] = useState(backendUrl);
+  const [esp32Draft, setEsp32Draft] = useState(esp32Url);
+  const [esp32Testing, setEsp32Testing] = useState(false);
+  const [esp32Status, setEsp32Status] = useState<string | null>(null);
 
   React.useEffect(() => {
     setBackendDraft(backendUrl);
   }, [backendUrl]);
+
+  React.useEffect(() => {
+    setEsp32Draft(esp32Url);
+  }, [esp32Url]);
 
   const saveBackendUrl = () => {
     const clean = backendDraft.trim().replace(/\/+$/, '');
@@ -23,6 +30,49 @@ export const SettingsView: React.FC = () => {
     }
     setBackendUrl(clean);
     setBackendVerifiedNotice(`Backend address saved: ${clean}`);
+  };
+
+  const saveEsp32Url = () => {
+    let clean = esp32Draft.trim().replace(/\/+$/, '');
+    if (!clean) {
+      setBackendVerifiedNotice('Please enter an ESP32 IP or URL');
+      return;
+    }
+    if (!clean.startsWith('http://') && !clean.startsWith('https://')) {
+      clean = `http://${clean}`;
+    }
+    setEsp32Url(clean);
+    setBackendVerifiedNotice(`ESP32 controller address saved: ${clean}`);
+  };
+
+  const testEsp32Connection = async () => {
+    setEsp32Testing(true);
+    setEsp32Status(null);
+    let target = esp32Draft.trim().replace(/\/+$/, '');
+    if (!target.startsWith('http://') && !target.startsWith('https://')) {
+      target = `http://${target}`;
+    }
+    const start = Date.now();
+    try {
+      let res = await fetch(`${target}/api/status`, { method: 'GET' }).catch(() => null);
+      if (!res || !res.ok) {
+        res = await fetch(`${backendUrl}/api/esp32/status/`).catch(() => null);
+      }
+      const latency = Date.now() - start;
+      if (res && res.ok) {
+        const d = await res.json().catch(() => ({}));
+        setEsp32Status(`Online (${latency}ms) • ${d.device || 'ESP32 Node'}`);
+        setBackendVerifiedNotice(`ESP32 online (${latency}ms) at ${target}`);
+      } else {
+        setEsp32Status(`Unreachable • Checking ${target}`);
+        setBackendVerifiedNotice(`ESP32 connection check failed for ${target}`);
+      }
+    } catch {
+      setEsp32Status('Connection timed out');
+      setBackendVerifiedNotice(`ESP32 is unreachable at ${target}`);
+    } finally {
+      setEsp32Testing(false);
+    }
   };
 
   const handleRunDiagnostics = () => {
@@ -75,6 +125,143 @@ export const SettingsView: React.FC = () => {
           <Icon name="save" size={20} color="#FFFFFF" />
           <Text style={styles.primaryBtnText}>Save Backend Address</Text>
         </TouchableOpacity>
+      </View>
+
+      {/* ESP32 Controller Connection Card */}
+      <View style={styles.card}>
+        <View style={styles.headerRow}>
+          <View style={styles.titleWithIcon}>
+            <View style={[styles.blueIconCircle, { backgroundColor: colors.surfaceGreen }]}>
+              <Icon name="sensors" size={18} color={colors.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6 }}>
+                <Text style={styles.cardTitle}>ESP32 Controller Node</Text>
+                <View style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 4,
+                  backgroundColor: colors.surfaceGreen,
+                  paddingHorizontal: 8,
+                  paddingVertical: 3,
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: '#C2E2A8',
+                }}>
+                  <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colors.primary }} />
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: colors.primary }}>
+                    {esp32Url}
+                  </Text>
+                </View>
+              </View>
+              <Text style={styles.cardSubtitle}>
+                LAN address for 4-Quadrant Relays & Universal AC IR Remote
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Quick Presets */}
+        <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+          <TouchableOpacity
+            onPress={() => setEsp32Draft('http://192.168.137.97')}
+            style={{
+              paddingVertical: 5,
+              paddingHorizontal: 10,
+              borderRadius: 8,
+              backgroundColor: esp32Draft === 'http://192.168.137.97' ? colors.primary : colors.canvas,
+              borderWidth: 1,
+              borderColor: esp32Draft === 'http://192.168.137.97' ? colors.primary : colors.borderSubtle,
+            }}
+            activeOpacity={0.8}
+          >
+            <Text style={{
+              fontSize: 11.5,
+              fontWeight: '700',
+              color: esp32Draft === 'http://192.168.137.97' ? '#FFFFFF' : colors.textPrimary,
+            }}>
+              192.168.137.97 (Hotspot Default)
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => setEsp32Draft('http://192.168.137.52')}
+            style={{
+              paddingVertical: 5,
+              paddingHorizontal: 10,
+              borderRadius: 8,
+              backgroundColor: esp32Draft === 'http://192.168.137.52' ? colors.primary : colors.canvas,
+              borderWidth: 1,
+              borderColor: esp32Draft === 'http://192.168.137.52' ? colors.primary : colors.borderSubtle,
+            }}
+            activeOpacity={0.8}
+          >
+            <Text style={{
+              fontSize: 11.5,
+              fontWeight: '700',
+              color: esp32Draft === 'http://192.168.137.52' ? '#FFFFFF' : colors.textPrimary,
+            }}>
+              192.168.137.52 (Static IP)
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        <TextInput
+          value={esp32Draft}
+          onChangeText={setEsp32Draft}
+          autoCapitalize="none"
+          autoCorrect={false}
+          keyboardType="url"
+          placeholder="http://192.168.137.97"
+          placeholderTextColor={colors.textSecondary}
+          style={styles.backendInput}
+        />
+
+        {esp32Status && (
+          <View style={{
+            backgroundColor: esp32Status.includes('Online') ? colors.surfaceGreen : colors.surfacePeach,
+            borderRadius: 10,
+            padding: 8,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 6,
+          }}>
+            <Icon
+              name={esp32Status.includes('Online') ? 'check_circle' : 'info'}
+              size={14}
+              color={esp32Status.includes('Online') ? colors.primary : colors.tertiary}
+            />
+            <Text style={{
+              fontSize: 12,
+              fontWeight: '700',
+              color: esp32Status.includes('Online') ? colors.primary : colors.tertiary,
+            }}>
+              {esp32Status}
+            </Text>
+          </View>
+        )}
+
+        <View style={{ flexDirection: 'row', gap: 10 }}>
+          <TouchableOpacity
+            onPress={saveEsp32Url}
+            style={[styles.primaryBtn, { flex: 1 }]}
+            activeOpacity={0.8}
+          >
+            <Icon name="save" size={18} color="#FFFFFF" />
+            <Text style={styles.primaryBtnText}>Save ESP32 Address</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={testEsp32Connection}
+            style={[styles.secondaryBtn, { flex: 0.8, minHeight: 48 }]}
+            activeOpacity={0.8}
+            disabled={esp32Testing}
+          >
+            <Icon name="sensors" size={18} color={colors.primary} />
+            <Text style={styles.secondaryBtnText}>
+              {esp32Testing ? 'Testing...' : 'Test Ping'}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
       {/* Banner Note: Trust Badge */}
       <View style={styles.bannerBadge}>

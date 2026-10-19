@@ -22,6 +22,10 @@ export interface Device {
   zoneId?: string;
   temperature?: number;
   targetTemperature?: number;
+  vendor?: string;
+  protocol?: string;
+  mode?: string;
+  fan?: string;
 }
 
 export interface SensorData {

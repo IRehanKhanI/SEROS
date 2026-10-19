@@ -13,6 +13,8 @@ import { useApp } from '../context/AppContext';
 import { Icon } from './Icon';
 import { colors } from '../theme/colors';
 import { Device } from '../types';
+import { UniversalAcRemote, AC_VENDOR_PROTOCOLS } from './UniversalAcRemote';
+import { serosApi } from '../api/serosApi';
 
 const QUADRANTS = [
   { id: '1', num: 1, name: 'Quadrant 1', position: 'Top-Left', relay: 1 },
@@ -60,6 +62,8 @@ export const DevicesView: React.FC = () => {
     sensorData,
     activeLayoutId,
     layouts,
+    backendUrl,
+    esp32Url,
   } = useApp();
 
   const [selectedQuadrant, setSelectedQuadrant] = useState<string>('all');
@@ -74,6 +78,11 @@ export const DevicesView: React.FC = () => {
   const [editName, setEditName] = useState<string>('');
   const [editRelay, setEditRelay] = useState<string>('1');
   const [editWatts, setEditWatts] = useState<string>('44');
+  const [editAcProtocol, setEditAcProtocol] = useState<string>('MITSUBISHI_AC');
+  const [editAcTemp, setEditAcTemp] = useState<number>(24);
+  const [editAcMode, setEditAcMode] = useState<string>('cool');
+  const [editAcFan, setEditAcFan] = useState<string>('auto');
+  const [isEditAcProtocolPickerOpen, setIsEditAcProtocolPickerOpen] = useState<boolean>(false);
   const [isSubmittingEdit, setIsSubmittingEdit] = useState<boolean>(false);
   const [editError, setEditError] = useState<string | null>(null);
 
@@ -84,6 +93,11 @@ export const DevicesView: React.FC = () => {
   const [newName, setNewName] = useState<string>('');
   const [newRelay, setNewRelay] = useState<string>('1');
   const [newWatts, setNewWatts] = useState<string>('44');
+  const [newAcProtocol, setNewAcProtocol] = useState<string>('MITSUBISHI_AC');
+  const [newAcTemp, setNewAcTemp] = useState<number>(24);
+  const [newAcMode, setNewAcMode] = useState<string>('cool');
+  const [newAcFan, setNewAcFan] = useState<string>('auto');
+  const [isAcProtocolPickerOpen, setIsAcProtocolPickerOpen] = useState<boolean>(false);
   const [isSubmittingNew, setIsSubmittingNew] = useState<boolean>(false);
   const [addError, setAddError] = useState<string | null>(null);
 
@@ -142,19 +156,31 @@ export const DevicesView: React.FC = () => {
     setEditCategory(device.category);
     setEditName(device.name);
     setEditRelay(String(device.relay || quads[0] || 1));
-    setEditWatts(String(device.powerWatts || (device.category === 'lights' ? 44 : device.category === 'fans' ? 38 : 1200)));
+    setEditWatts(String(device.powerWatts || (device.category === 'lights' ? 44 : device.category === 'fans' ? 38 : 1450)));
+
+    // AC specific settings
+    const proto = (device as any).vendor || (device as any).protocol || 'MITSUBISHI_AC';
+    setEditAcProtocol(proto);
+    setEditAcTemp(device.targetTemperature || 24);
+    setEditAcMode((device as any).mode || 'cool');
+    setEditAcFan((device as any).fan || 'auto');
+    setIsEditAcProtocolPickerOpen(false);
+
     setEditError(null);
     setIsEditModalOpen(true);
   };
 
   const handleEditCategoryChange = (cat: 'lights' | 'fans' | 'ac') => {
     setEditCategory(cat);
-    if (cat === 'ac' && editQuadrants.length === 1) {
+    if (cat === 'ac') {
       setEditQuadrants([1, 2, 3, 4]); // Auto-suggest all quadrants for AC
+      setEditWatts('1450');
+      setEditRelay('');
+    } else {
+      setEditWatts(cat === 'lights' ? '44' : '38');
+      if (editQuadrants.length === 4) setEditQuadrants([1]);
+      setEditRelay('1');
     }
-    if (cat === 'lights') setEditWatts('44');
-    else if (cat === 'fans') setEditWatts('38');
-    else setEditWatts('1200');
   };
 
   const toggleEditQuadrant = (quadNum: number) => {
@@ -182,6 +208,7 @@ export const DevicesView: React.FC = () => {
       setEditError('Please select at least one quadrant.');
       return;
     }
+    const isAc = editCategory === 'ac';
     setIsSubmittingEdit(true);
     setEditError(null);
     try {
@@ -189,10 +216,29 @@ export const DevicesView: React.FC = () => {
         name: trimmed,
         category: editCategory,
         quadrant: editQuadrants[0],
-        quadrants: editQuadrants,
-        relay: editRelay && !isNaN(parseInt(editRelay, 10)) ? parseInt(editRelay, 10) : editQuadrants[0],
-        power_watts: editWatts && !isNaN(parseFloat(editWatts)) ? parseFloat(editWatts) : undefined,
+        quadrants: isAc ? [1, 2, 3, 4] : editQuadrants,
+        relay: isAc ? undefined : (editRelay && !isNaN(parseInt(editRelay, 10)) ? parseInt(editRelay, 10) : editQuadrants[0]),
+        power_watts: editWatts && !isNaN(parseFloat(editWatts)) ? parseFloat(editWatts) : (isAc ? 1450 : undefined),
+        vendor: isAc ? editAcProtocol : undefined,
+        protocol: isAc ? editAcProtocol : undefined,
+        target_temperature: isAc ? editAcTemp : undefined,
+        mode: isAc ? editAcMode : undefined,
+        fan: isAc ? editAcFan : undefined,
       });
+
+      if (isAc) {
+        serosApi.setAcVendor(backendUrl, editAcProtocol).catch(() => undefined);
+        serosApi.setAcTemp(backendUrl, editAcTemp).catch(() => undefined);
+        serosApi.setAcMode(backendUrl, editAcMode).catch(() => undefined);
+        serosApi.setAcFan(backendUrl, editAcFan).catch(() => undefined);
+        if (esp32Url) {
+          fetch(`${esp32Url.replace(/\/+$/, '')}/api/ac/vendor?vendor=${encodeURIComponent(editAcProtocol)}`, { method: 'POST' }).catch(() => undefined);
+          fetch(`${esp32Url.replace(/\/+$/, '')}/api/ac/temp?value=${editAcTemp}`, { method: 'POST' }).catch(() => undefined);
+          fetch(`${esp32Url.replace(/\/+$/, '')}/api/ac/mode?mode=${encodeURIComponent(editAcMode)}`, { method: 'POST' }).catch(() => undefined);
+          fetch(`${esp32Url.replace(/\/+$/, '')}/api/ac/fan?fan=${encodeURIComponent(editAcFan)}`, { method: 'POST' }).catch(() => undefined);
+        }
+      }
+
       setIsEditModalOpen(false);
       setDeviceToEdit(null);
     } catch (err: any) {
@@ -220,14 +266,16 @@ export const DevicesView: React.FC = () => {
     setNewCategory(cat);
     if (cat === 'ac') {
       setNewQuadrants([1, 2, 3, 4]); // Realistic Room AC: defaults to all quadrants
-      setNewName('Room AC Unit');
-      setNewWatts('1200');
+      setNewName('Universal AC Remote');
+      setNewWatts('1450');
+      setNewRelay('');
     } else {
       const q = newQuadrants[0] || 1;
       setNewQuadrants([q]);
       const defaultTypeName = cat === 'lights' ? 'Light' : 'Fan';
       setNewName(`Quadrant ${q} ${defaultTypeName}`);
       setNewWatts(cat === 'lights' ? '44' : '38');
+      setNewRelay('1');
     }
   };
 
@@ -271,17 +319,28 @@ export const DevicesView: React.FC = () => {
       setAddError('Please select at least one quadrant.');
       return;
     }
+    const isAc = newCategory === 'ac';
     setIsSubmittingNew(true);
     setAddError(null);
     try {
       await addDevice({
         quadrant: newQuadrants[0],
-        quadrants: newQuadrants,
+        quadrants: isAc ? [1, 2, 3, 4] : newQuadrants,
         name: trimmed,
         category: newCategory,
-        relay: newRelay && !isNaN(parseInt(newRelay, 10)) ? parseInt(newRelay, 10) : newQuadrants[0],
-        power_watts: newWatts && !isNaN(parseFloat(newWatts)) ? parseFloat(newWatts) : undefined,
+        relay: isAc ? undefined : (newRelay && !isNaN(parseInt(newRelay, 10)) ? parseInt(newRelay, 10) : newQuadrants[0]),
+        power_watts: newWatts && !isNaN(parseFloat(newWatts)) ? parseFloat(newWatts) : (isAc ? 1450 : undefined),
+        vendor: isAc ? newAcProtocol : undefined,
+        target_temperature: isAc ? newAcTemp : 24,
+        mode: isAc ? newAcMode : undefined,
+        fan: isAc ? newAcFan : undefined,
       });
+      if (isAc) {
+        serosApi.setAcVendor(backendUrl, newAcProtocol).catch(() => undefined);
+        serosApi.setAcTemp(backendUrl, newAcTemp).catch(() => undefined);
+        serosApi.setAcMode(backendUrl, newAcMode).catch(() => undefined);
+        serosApi.setAcFan(backendUrl, newAcFan).catch(() => undefined);
+      }
       setIsAddModalOpen(false);
     } catch (err: any) {
       setAddError(err?.message || 'Failed to add device.');
@@ -747,71 +806,42 @@ export const DevicesView: React.FC = () => {
                   </View>
                 )}
 
-                {/* AC Thermostat & Universal IR Remote Controller Box */}
-                {isAC && (
-                  <View style={styles.acCardBox}>
-                    <View style={styles.rowBetween}>
-                      <View style={styles.rowAlign}>
-                        <Icon name="thermostat" size={24} color={colors.secondary} />
-                        <View style={{ marginLeft: 6 }}>
-                          <Text style={styles.thermoLabel}>Climate Control</Text>
-                          <Text style={styles.thermoTemp}>
-                            Room: {sensorData.temperature.toFixed(1)}°C • Target: {device.targetTemperature || 24}°C
-                          </Text>
-                        </View>
-
-                      </View>
-                      <View style={styles.targetPill}>
-                        <Icon name="sensors" size={14} color={colors.primary} />
-                        <Text style={styles.targetText}>
-                          IR Remote (GPIO 4/14)
-                        </Text>
-                      </View>
-                    </View>
-                    <View style={styles.acRuleBanner}>
-                      <Icon name="info" size={14} color={colors.secondary} />
-                      <Text style={styles.acRuleBannerText}>
-                        {getDeviceQuadrants(device).length > 1
-                          ? `Stays ON if someone is in ${getDeviceQuadrants(device).map(q => `Q${q}`).join(', ')}`
-                          : `Stays ON if someone is in Quadrant ${getDeviceQuadrants(device)[0]}`}
-                      </Text>
-                    </View>
+                {/* AC Thermostat & Universal IR Remote Controller Component */}
+                {isAC ? (
+                  <View style={{ marginTop: 8, width: '100%' }}>
+                    <UniversalAcRemote initialProtocol="MITSUBISHI_AC" />
                   </View>
-                )}
-
-                {/* Big Action Switch */}
-                <TouchableOpacity
-                  onPress={() => toggleDevice(device.id)}
-                  style={[
-                    styles.toggleBtn,
-                    isOn ? styles.toggleBtnOn : styles.toggleBtnOff,
-                  ]}
-                  activeOpacity={0.85}
-                >
-                  <Icon
-                    name="power_settings_new"
-                    size={22}
-                    color={isOn ? colors.tertiaryContainer : '#FFFFFF'}
-                  />
-                  <Text
+                ) : (
+                  /* Big Action Switch for Lights and Fans */
+                  <TouchableOpacity
+                    onPress={() => toggleDevice(device.id)}
                     style={[
-                      styles.toggleBtnText,
-                      isOn ? styles.toggleBtnTextOn : styles.toggleBtnTextOff,
+                      styles.toggleBtn,
+                      isOn ? styles.toggleBtnOn : styles.toggleBtnOff,
                     ]}
+                    activeOpacity={0.85}
                   >
-                    {isOn
-                      ? isFan
-                        ? 'TURN OFF FAN'
-                        : isLight
-                        ? 'TURN OFF LIGHTS'
-                        : 'TURN OFF AC'
-                      : isFan
-                      ? 'TURN ON FAN'
-                      : isLight
-                      ? 'TURN ON LIGHTS'
-                      : 'TURN ON AC'}
-                  </Text>
-                </TouchableOpacity>
+                    <Icon
+                      name="power_settings_new"
+                      size={22}
+                      color={isOn ? colors.tertiaryContainer : '#FFFFFF'}
+                    />
+                    <Text
+                      style={[
+                        styles.toggleBtnText,
+                        isOn ? styles.toggleBtnTextOn : styles.toggleBtnTextOff,
+                      ]}
+                    >
+                      {isOn
+                        ? isFan
+                          ? 'TURN OFF FAN'
+                          : 'TURN OFF LIGHTS'
+                        : isFan
+                        ? 'TURN ON FAN'
+                        : 'TURN ON LIGHTS'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
               </View>
             );
           })
@@ -1100,32 +1130,200 @@ export const DevicesView: React.FC = () => {
                 />
               </View>
 
-              {/* Hardware Relay & Power Row */}
-              <View style={styles.inputRow}>
-                <View style={[styles.inputGroup, { flex: 1 }]}>
-                  <Text style={styles.inputLabel}>RELAY PIN #</Text>
-                  <TextInput
-                    value={editRelay}
-                    onChangeText={setEditRelay}
-                    keyboardType="numeric"
-                    placeholder="1"
-                    placeholderTextColor={colors.textSecondary}
-                    style={styles.textInput}
-                  />
-                </View>
+              {/* Hardware Relay & Power Row / AC IR Configuration */}
+              {editCategory === 'ac' ? (
+                <View style={{ gap: 12, marginVertical: 4 }}>
+                  <View style={styles.acHardwareBanner}>
+                    <View style={styles.rowAlign}>
+                      <Icon name="sensors" size={18} color={colors.primary} />
+                      <Text style={styles.acHardwareBannerTitle}>Universal IR AC Remote (Wireless • No Relay)</Text>
+                    </View>
+                    <Text style={styles.acHardwareBannerSub}>
+                      Controls AC wirelessly via IR Transmitter (GPIO 4) & Receiver (GPIO 14).
+                      Hardware relays 1-4 remain completely free for lights and fans.
+                    </Text>
+                  </View>
 
-                <View style={[styles.inputGroup, { flex: 1 }]}>
-                  <Text style={styles.inputLabel}>WATTS (POWER)</Text>
-                  <TextInput
-                    value={editWatts}
-                    onChangeText={setEditWatts}
-                    keyboardType="numeric"
-                    placeholder="44"
-                    placeholderTextColor={colors.textSecondary}
-                    style={styles.textInput}
-                  />
+                  {/* Brand / Vendor Protocol */}
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>AC BRAND / VENDOR PROTOCOL</Text>
+                    <TouchableOpacity
+                      onPress={() => setIsEditAcProtocolPickerOpen(true)}
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        backgroundColor: colors.canvas,
+                        borderWidth: 1.5,
+                        borderColor: colors.borderSubtle,
+                        borderRadius: 10,
+                        paddingVertical: 10,
+                        paddingHorizontal: 14,
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={{ fontSize: 13.5, fontWeight: '800', color: colors.primary }}>
+                        {editAcProtocol}
+                      </Text>
+                      <Text style={{ fontSize: 12, fontWeight: '700', color: colors.textSecondary }}>
+                        Select Brand ▾
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Default Target Temperature */}
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>DEFAULT TEMPERATURE</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
+                      <TouchableOpacity
+                        onPress={() => setEditAcTemp(prev => Math.max(16, prev - 1))}
+                        style={{
+                          backgroundColor: colors.surfaceGreen,
+                          borderWidth: 1.5,
+                          borderColor: '#C2E2A8',
+                          borderRadius: 8,
+                          paddingVertical: 8,
+                          paddingHorizontal: 16,
+                        }}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={{ fontSize: 14, fontWeight: '800', color: colors.primary }}>− 1°C</Text>
+                      </TouchableOpacity>
+                      <Text style={{ fontSize: 24, fontWeight: '900', color: colors.primary }}>
+                        {editAcTemp}°C
+                      </Text>
+                      <TouchableOpacity
+                        onPress={() => setEditAcTemp(prev => Math.min(30, prev + 1))}
+                        style={{
+                          backgroundColor: colors.surfaceGreen,
+                          borderWidth: 1.5,
+                          borderColor: '#C2E2A8',
+                          borderRadius: 8,
+                          paddingVertical: 8,
+                          paddingHorizontal: 16,
+                        }}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={{ fontSize: 14, fontWeight: '800', color: colors.primary }}>+ 1°C</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  {/* Default Operating Mode */}
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>DEFAULT OPERATING MODE</Text>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                      {(['cool', 'heat', 'dry', 'fan', 'auto'] as const).map(m => {
+                        const isMSelected = editAcMode === m;
+                        return (
+                          <TouchableOpacity
+                            key={m}
+                            onPress={() => setEditAcMode(m)}
+                            style={{
+                              paddingVertical: 6,
+                              paddingHorizontal: 12,
+                              borderRadius: 8,
+                              backgroundColor: isMSelected ? colors.primary : colors.canvas,
+                              borderWidth: 1.5,
+                              borderColor: isMSelected ? colors.primary : colors.borderSubtle,
+                            }}
+                            activeOpacity={0.8}
+                          >
+                            <Text style={{ fontSize: 12, fontWeight: isMSelected ? '800' : '600', color: isMSelected ? '#FFFFFF' : colors.textSecondary }}>
+                              {m.charAt(0).toUpperCase() + m.slice(1)}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </View>
+
+                  {/* Default Fan Speed */}
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>DEFAULT FAN SPEED</Text>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                      {(['auto', 'low', 'medium', 'high'] as const).map(f => {
+                        const isFSelected = editAcFan === f;
+                        return (
+                          <TouchableOpacity
+                            key={f}
+                            onPress={() => setEditAcFan(f)}
+                            style={{
+                              paddingVertical: 6,
+                              paddingHorizontal: 12,
+                              borderRadius: 8,
+                              backgroundColor: isFSelected ? colors.primary : colors.canvas,
+                              borderWidth: 1.5,
+                              borderColor: isFSelected ? colors.primary : colors.borderSubtle,
+                            }}
+                            activeOpacity={0.8}
+                          >
+                            <Text style={{ fontSize: 12, fontWeight: isFSelected ? '800' : '600', color: isFSelected ? '#FFFFFF' : colors.textSecondary }}>
+                              {f.charAt(0).toUpperCase() + f.slice(1)}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </View>
+
+                  {/* Power Rating (Watts) */}
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>WATTS (POWER DRAW)</Text>
+                    <TextInput
+                      value={editWatts}
+                      onChangeText={setEditWatts}
+                      keyboardType="numeric"
+                      placeholder="1450"
+                      placeholderTextColor={colors.textSecondary}
+                      style={styles.textInput}
+                    />
+                  </View>
+
+                  {/* Presence Automation Note */}
+                  <View style={{
+                    backgroundColor: colors.surfaceGreen,
+                    borderWidth: 1,
+                    borderColor: '#C2E2A8',
+                    borderRadius: 10,
+                    padding: 10,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 8,
+                  }}>
+                    <Icon name="verified" size={18} color={colors.primary} />
+                    <Text style={{ fontSize: 11.5, fontWeight: '600', color: colors.primary, flex: 1, lineHeight: 16 }}>
+                      Presence Automation: Turns ON when humans are detected in the room, and OFF when empty. Remaining controls can be adjusted anytime via Universal AC Remote or physical 21-key remote.
+                    </Text>
+                  </View>
                 </View>
-              </View>
+              ) : (
+                <View style={styles.inputRow}>
+                  <View style={[styles.inputGroup, { flex: 1 }]}>
+                    <Text style={styles.inputLabel}>RELAY PIN #</Text>
+                    <TextInput
+                      value={editRelay}
+                      onChangeText={setEditRelay}
+                      keyboardType="numeric"
+                      placeholder="1"
+                      placeholderTextColor={colors.textSecondary}
+                      style={styles.textInput}
+                    />
+                  </View>
+
+                  <View style={[styles.inputGroup, { flex: 1 }]}>
+                    <Text style={styles.inputLabel}>WATTS (POWER)</Text>
+                    <TextInput
+                      value={editWatts}
+                      onChangeText={setEditWatts}
+                      keyboardType="numeric"
+                      placeholder="44"
+                      placeholderTextColor={colors.textSecondary}
+                      style={styles.textInput}
+                    />
+                  </View>
+                </View>
+              )}
 
               {editError && (
                 <View style={styles.errorNotice}>
@@ -1160,6 +1358,63 @@ export const DevicesView: React.FC = () => {
                 )}
               </TouchableOpacity>
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Brand / Vendor Protocol Picker Modal for Edit Device */}
+      <Modal
+        visible={isEditAcProtocolPickerOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setIsEditAcProtocolPickerOpen(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={[styles.modalCard, { maxHeight: 500 }]}>
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalTitle}>Select AC Protocol</Text>
+                <Text style={styles.modalSubtitle}>Pick matching vendor brand protocol</Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setIsEditAcProtocolPickerOpen(false)}
+                style={styles.modalCloseBtn}
+              >
+                <Icon name="close" size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 380, marginVertical: 8 }}>
+              {AC_VENDOR_PROTOCOLS.map(vnd => {
+                const isSel = editAcProtocol === vnd;
+                return (
+                  <TouchableOpacity
+                    key={vnd}
+                    onPress={() => {
+                      setEditAcProtocol(vnd);
+                      setIsEditAcProtocolPickerOpen(false);
+                    }}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      paddingVertical: 10,
+                      paddingHorizontal: 12,
+                      borderRadius: 8,
+                      backgroundColor: isSel ? colors.surfaceGreen : 'transparent',
+                      borderBottomWidth: 1,
+                      borderBottomColor: colors.borderSubtle,
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={{ fontSize: 13.5, fontWeight: isSel ? '800' : '600', color: isSel ? colors.primary : colors.textPrimary }}>
+                      {vnd}
+                    </Text>
+                    {isSel && <Icon name="check" size={16} color={colors.primary} />}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -1393,32 +1648,187 @@ export const DevicesView: React.FC = () => {
                 />
               </View>
 
-              {/* Hardware Relay & Power Row */}
-              <View style={styles.inputRow}>
-                <View style={[styles.inputGroup, { flex: 1 }]}>
-                  <Text style={styles.inputLabel}>RELAY PIN #</Text>
-                  <TextInput
-                    value={newRelay}
-                    onChangeText={setNewRelay}
-                    keyboardType="numeric"
-                    placeholder="1"
-                    placeholderTextColor={colors.textSecondary}
-                    style={styles.textInput}
-                  />
-                </View>
+              {/* Hardware Relay & Power Row / AC IR Configuration */}
+              {newCategory === 'ac' ? (
+                <View style={{ gap: 12, marginVertical: 4 }}>
+                  <View style={styles.acHardwareBanner}>
+                    <View style={styles.rowAlign}>
+                      <Icon name="sensors" size={18} color={colors.primary} />
+                      <Text style={styles.acHardwareBannerTitle}>Universal IR AC Remote (Wireless • No Relay)</Text>
+                    </View>
+                    <Text style={styles.acHardwareBannerSub}>
+                      Controls AC wirelessly via IR Transmitter (GPIO 4) & Receiver (GPIO 14).
+                      Hardware relays 1-4 remain completely free for lights and fans.
+                    </Text>
+                  </View>
 
-                <View style={[styles.inputGroup, { flex: 1 }]}>
-                  <Text style={styles.inputLabel}>WATTS (POWER)</Text>
-                  <TextInput
-                    value={newWatts}
-                    onChangeText={setNewWatts}
-                    keyboardType="numeric"
-                    placeholder="44"
-                    placeholderTextColor={colors.textSecondary}
-                    style={styles.textInput}
-                  />
+                  {/* Brand / Vendor Protocol */}
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>AC BRAND / VENDOR PROTOCOL</Text>
+                    <TouchableOpacity
+                      onPress={() => setIsAcProtocolPickerOpen(true)}
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        backgroundColor: colors.canvas,
+                        borderWidth: 1.5,
+                        borderColor: colors.borderSubtle,
+                        borderRadius: 10,
+                        paddingVertical: 10,
+                        paddingHorizontal: 14,
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={{ fontSize: 13.5, fontWeight: '800', color: colors.primary }}>
+                        {newAcProtocol}
+                      </Text>
+                      <Text style={{ fontSize: 12, fontWeight: '700', color: colors.textSecondary }}>
+                        Select Brand ▾
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Default Target Temperature */}
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>DEFAULT TEMPERATURE</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
+                      <TouchableOpacity
+                        onPress={() => setNewAcTemp(prev => Math.max(16, prev - 1))}
+                        style={{
+                          backgroundColor: colors.surfaceGreen,
+                          borderWidth: 1.5,
+                          borderColor: '#C2E2A8',
+                          borderRadius: 8,
+                          paddingVertical: 8,
+                          paddingHorizontal: 16,
+                        }}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={{ fontSize: 14, fontWeight: '800', color: colors.primary }}>− 1°C</Text>
+                      </TouchableOpacity>
+                      <Text style={{ fontSize: 24, fontWeight: '900', color: colors.primary }}>
+                        {newAcTemp}°C
+                      </Text>
+                      <TouchableOpacity
+                        onPress={() => setNewAcTemp(prev => Math.min(30, prev + 1))}
+                        style={{
+                          backgroundColor: colors.surfaceGreen,
+                          borderWidth: 1.5,
+                          borderColor: '#C2E2A8',
+                          borderRadius: 8,
+                          paddingVertical: 8,
+                          paddingHorizontal: 16,
+                        }}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={{ fontSize: 14, fontWeight: '800', color: colors.primary }}>+ 1°C</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  {/* Default Operating Mode */}
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>DEFAULT OPERATING MODE</Text>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                      {(['cool', 'heat', 'dry', 'fan', 'auto'] as const).map(m => {
+                        const isMSelected = newAcMode === m;
+                        return (
+                          <TouchableOpacity
+                            key={m}
+                            onPress={() => setNewAcMode(m)}
+                            style={{
+                              paddingVertical: 6,
+                              paddingHorizontal: 12,
+                              borderRadius: 8,
+                              backgroundColor: isMSelected ? colors.primary : colors.canvas,
+                              borderWidth: 1.5,
+                              borderColor: isMSelected ? colors.primary : colors.borderSubtle,
+                            }}
+                            activeOpacity={0.8}
+                          >
+                            <Text style={{ fontSize: 12, fontWeight: isMSelected ? '800' : '600', color: isMSelected ? '#FFFFFF' : colors.textSecondary }}>
+                              {m.charAt(0).toUpperCase() + m.slice(1)}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </View>
+
+                  {/* Default Fan Speed */}
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>DEFAULT FAN SPEED</Text>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                      {(['auto', 'low', 'medium', 'high'] as const).map(f => {
+                        const isFSelected = newAcFan === f;
+                        return (
+                          <TouchableOpacity
+                            key={f}
+                            onPress={() => setNewAcFan(f)}
+                            style={{
+                              paddingVertical: 6,
+                              paddingHorizontal: 12,
+                              borderRadius: 8,
+                              backgroundColor: isFSelected ? colors.primary : colors.canvas,
+                              borderWidth: 1.5,
+                              borderColor: isFSelected ? colors.primary : colors.borderSubtle,
+                            }}
+                            activeOpacity={0.8}
+                          >
+                            <Text style={{ fontSize: 12, fontWeight: isFSelected ? '800' : '600', color: isFSelected ? '#FFFFFF' : colors.textSecondary }}>
+                              {f.charAt(0).toUpperCase() + f.slice(1)}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </View>
+
+                  {/* Presence Automation Explanatory Banner */}
+                  <View style={{
+                    backgroundColor: colors.surfaceGreen,
+                    borderWidth: 1,
+                    borderColor: '#C2E2A8',
+                    borderRadius: 10,
+                    padding: 10,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 8,
+                  }}>
+                    <Icon name="verified" size={18} color={colors.primary} />
+                    <Text style={{ fontSize: 11.5, fontWeight: '600', color: colors.primary, flex: 1, lineHeight: 16 }}>
+                      Presence Automation: Turns ON when humans are detected in the room, and OFF when empty. Remaining controls can be adjusted anytime via Universal AC Remote or physical 21-key remote.
+                    </Text>
+                  </View>
                 </View>
-              </View>
+              ) : (
+                <View style={styles.inputRow}>
+                  <View style={[styles.inputGroup, { flex: 1 }]}>
+                    <Text style={styles.inputLabel}>RELAY PIN #</Text>
+                    <TextInput
+                      value={newRelay}
+                      onChangeText={setNewRelay}
+                      keyboardType="numeric"
+                      placeholder="1"
+                      placeholderTextColor={colors.textSecondary}
+                      style={styles.textInput}
+                    />
+                  </View>
+
+                  <View style={[styles.inputGroup, { flex: 1 }]}>
+                    <Text style={styles.inputLabel}>WATTS (POWER)</Text>
+                    <TextInput
+                      value={newWatts}
+                      onChangeText={setNewWatts}
+                      keyboardType="numeric"
+                      placeholder="44"
+                      placeholderTextColor={colors.textSecondary}
+                      style={styles.textInput}
+                    />
+                  </View>
+                </View>
+              )}
 
               {addError && (
                 <View style={styles.errorNotice}>
@@ -1455,6 +1865,63 @@ export const DevicesView: React.FC = () => {
             </View>
           </View>
         </View>
+
+        {/* Brand / Vendor Protocol Picker Modal */}
+        <Modal
+          visible={isAcProtocolPickerOpen}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setIsAcProtocolPickerOpen(false)}
+        >
+          <View style={styles.modalBackdrop}>
+            <View style={[styles.modalCard, { maxHeight: 500 }]}>
+              <View style={styles.modalHeader}>
+                <View>
+                  <Text style={styles.modalTitle}>Select AC Protocol</Text>
+                  <Text style={styles.modalSubtitle}>Pick matching vendor brand protocol</Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => setIsAcProtocolPickerOpen(false)}
+                  style={styles.modalCloseBtn}
+                >
+                  <Icon name="close" size={20} color={colors.textSecondary} />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 380, marginVertical: 8 }}>
+                {AC_VENDOR_PROTOCOLS.map(vnd => {
+                  const isSel = newAcProtocol === vnd;
+                  return (
+                    <TouchableOpacity
+                      key={vnd}
+                      onPress={() => {
+                        setNewAcProtocol(vnd);
+                        setIsAcProtocolPickerOpen(false);
+                      }}
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        paddingVertical: 10,
+                        paddingHorizontal: 12,
+                        borderRadius: 8,
+                        backgroundColor: isSel ? colors.surfaceGreen : 'transparent',
+                        borderBottomWidth: 1,
+                        borderBottomColor: colors.borderSubtle,
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={{ fontSize: 13.5, fontWeight: isSel ? '800' : '600', color: isSel ? colors.primary : colors.textPrimary }}>
+                        {vnd}
+                      </Text>
+                      {isSel && <Icon name="check" size={16} color={colors.primary} />}
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
       </Modal>
 
       {/* Delete Confirmation Modal */}
@@ -2353,5 +2820,25 @@ const styles = StyleSheet.create({
   presetChipTextActive: {
     color: '#FFFFFF',
     fontWeight: '800',
+  },
+  acHardwareBanner: {
+    backgroundColor: colors.surfaceGreen,
+    borderColor: '#C2E2A8',
+    borderWidth: 1.5,
+    borderRadius: 14,
+    padding: 14,
+    marginVertical: 6,
+  },
+  acHardwareBannerTitle: {
+    color: colors.primary,
+    fontSize: 13.5,
+    fontWeight: '800',
+    marginLeft: 6,
+  },
+  acHardwareBannerSub: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    marginTop: 4,
+    lineHeight: 17,
   },
 });

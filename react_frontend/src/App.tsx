@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Icon } from './Icon';
+import { UniversalAcRemote, AC_VENDOR_PROTOCOLS } from './UniversalAcRemote';
 
 type Point = [number, number];
 
@@ -41,6 +42,11 @@ export interface Device {
   powerWatts?: number;
   isAutomated?: boolean;
   zoneId?: string;
+  targetTemperature?: number;
+  vendor?: string;
+  protocol?: string;
+  mode?: string;
+  fan?: string;
 }
 
 export interface Box {
@@ -269,8 +275,48 @@ export default function App() {
   });
   const [projectedKwh, setProjectedKwh] = useState<number>(250);
   const [energyTimeframe, setEnergyTimeframe] = useState<'today' | '7days' | 'month'>('today');
-  const [selectedDayIndex, setSelectedDayIndex] = useState<number>(2); // Default to Wed (Peak ₹64)
   const [customTariffOpen, setCustomTariffOpen] = useState(false);
+
+  // ESP32 LAN Controller Address State
+  const [esp32Address, setEsp32Address] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem('seros_esp32_url');
+      if (saved) return saved;
+    } catch {}
+    return 'http://192.168.137.97';
+  });
+  const [esp32DraftAddress, setEsp32DraftAddress] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem('seros_esp32_url');
+      if (saved) return saved;
+    } catch {}
+    return 'http://192.168.137.97';
+  });
+  const [esp32SaveNotice, setEsp32SaveNotice] = useState<string | null>(null);
+
+  const handleSaveEsp32Address = async (newUrl: string) => {
+    let clean = newUrl.trim().replace(/\/+$/, '') || 'http://192.168.137.97';
+    if (!clean.startsWith('http://') && !clean.startsWith('https://')) {
+      clean = `http://${clean}`;
+    }
+    setEsp32Address(clean);
+    setEsp32DraftAddress(clean);
+    try { localStorage.setItem('seros_esp32_url', clean); } catch {}
+    try {
+      await fetch(`${API}/api/esp32/ip/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ip: clean }),
+      });
+      setEsp32SaveNotice(`ESP32 Address updated to ${clean}`);
+    } catch {
+      setEsp32SaveNotice(`Saved locally: ${clean}`);
+    }
+    setTimeout(() => setEsp32SaveNotice(null), 3500);
+  };
+
+  // Analytics Weekly Day Bars State
+  const [selectedDayIndex, setSelectedDayIndex] = useState<number>(2);
 
   // Layout Renaming State
   const [renamingLayoutId, setRenamingLayoutId] = useState<string | null>(null);
@@ -286,6 +332,10 @@ export default function App() {
   const [addDeviceZoneNum, setAddDeviceZoneNum] = useState(1);
   const [addDeviceType, setAddDeviceType] = useState<'lights' | 'fans' | 'ac' | 'other'>('lights');
   const [addDeviceName, setAddDeviceName] = useState('Zone 1 Light');
+  const [addDeviceAcProtocol, setAddDeviceAcProtocol] = useState('MITSUBISHI_AC');
+  const [addDeviceAcTemp, setAddDeviceAcTemp] = useState<number>(24);
+  const [addDeviceAcMode, setAddDeviceAcMode] = useState<string>('cool');
+  const [addDeviceAcFan, setAddDeviceAcFan] = useState<string>('auto');
   const [isSubmittingDevice, setIsSubmittingDevice] = useState(false);
   const [addSuccessNotice, setAddSuccessNotice] = useState<string | null>(null);
 
@@ -378,10 +428,41 @@ export default function App() {
           });
         }
       }
+
+      // 4. Direct ESP32 hardware status sync (reconciles physical mini remote button overrides)
+      if (esp32Address) {
+        try {
+          const espRes = await fetch(`${esp32Address.replace(/\/+$/, '')}/api/status`);
+          if (espRes.ok) {
+            const espData = await espRes.json();
+            if (espData && Array.isArray(espData.relays)) {
+              setDevices(prev => prev.map(d => {
+                if (d.category === 'ac' && typeof espData.ac_power === 'boolean') {
+                  return {
+                    ...d,
+                    status: espData.ac_power ? 'ON' : 'OFF',
+                    targetTemperature: espData.ac_temperature ?? d.targetTemperature,
+                  };
+                }
+                const r = d.relay || d.quadrantNum || 1;
+                if (r >= 1 && r <= 4 && typeof espData.relays[r - 1] === 'boolean') {
+                  return {
+                    ...d,
+                    status: espData.relays[r - 1] ? 'ON' : 'OFF',
+                  };
+                }
+                return d;
+              }));
+            }
+          }
+        } catch {
+          // Direct request failed; backend /api/state/ handles proxy sync
+        }
+      }
     } catch {
       // Offline fallback preserves local state
     }
-  }, []);
+  }, [esp32Address, isCameraOn]);
 
   useEffect(() => {
     void loadAllData();
@@ -1218,12 +1299,18 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ on: nextStatus === 'ON', manual_override: true }),
       });
-      if (device.relay) {
+      if (device.category === 'ac') {
+        await fetch(`${API}/api/ac/power/?on=${nextStatus === 'ON' ? 1 : 0}`, { method: 'POST' }).catch(() => undefined);
+        fetch(`http://192.168.137.97/power?on=${nextStatus === 'ON' ? 1 : 0}`).catch(() => undefined);
+        fetch(`http://192.168.137.97/api/ac/power?on=${nextStatus === 'ON' ? 1 : 0}`).catch(() => undefined);
+      } else if (device.relay) {
         await fetch(`${API}/api/devices/control/`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ relay: device.relay, state: nextStatus === 'ON' ? 1 : 0 }),
         }).catch(() => undefined);
+        fetch(`http://192.168.137.97/relayToggle?id=${device.relay}&state=${nextStatus === 'ON' ? 1 : 0}`).catch(() => undefined);
+        fetch(`http://192.168.137.97/api/relay?id=${device.relay}&state=${nextStatus === 'ON' ? 1 : 0}`).catch(() => undefined);
       }
     } catch {
       // offline
@@ -1262,6 +1349,8 @@ export default function App() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ relay: zone.relay, state: targetState ? 1 : 0 }),
         }).catch(() => undefined);
+        fetch(`http://192.168.137.97/relayToggle?id=${zone.relay}&state=${targetState ? 1 : 0}`).catch(() => undefined);
+        fetch(`http://192.168.137.97/api/relay?id=${zone.relay}&state=${targetState ? 1 : 0}`).catch(() => undefined);
       }
       await loadAllData();
     } catch (err) {
@@ -1278,15 +1367,16 @@ export default function App() {
     setIsSubmittingDevice(true);
     setAddSuccessNotice(null);
 
+    const isAc = addDeviceType === 'ac';
     const newDev: Device = {
       id: `dev-${Date.now()}`,
       name: addDeviceName.trim(),
       category: addDeviceType,
       status: 'ON',
       quadrantNum: addDeviceZoneNum,
-      quadrants: [addDeviceZoneNum],
-      relay: addDeviceZoneNum,
-      powerWatts: addDeviceType === 'ac' ? 1400 : addDeviceType === 'fans' ? 65 : 24,
+      quadrants: isAc ? [1, 2, 3, 4] : [addDeviceZoneNum],
+      relay: isAc ? undefined : addDeviceZoneNum,
+      powerWatts: isAc ? 1450 : addDeviceType === 'fans' ? 65 : 24,
     };
 
     setDevices(prev => [...prev, newDev]);
@@ -1299,14 +1389,24 @@ export default function App() {
           name: addDeviceName.trim(),
           category: addDeviceType,
           quadrant: addDeviceZoneNum,
-          quadrants: [addDeviceZoneNum],
-          relay: addDeviceZoneNum,
+          quadrants: isAc ? [1, 2, 3, 4] : [addDeviceZoneNum],
+          relay: isAc ? null : addDeviceZoneNum,
           layout_id: addDeviceLayoutId,
+          vendor: isAc ? addDeviceAcProtocol : undefined,
+          target_temperature: isAc ? addDeviceAcTemp : 24,
+          mode: isAc ? addDeviceAcMode : undefined,
+          fan: isAc ? addDeviceAcFan : undefined,
         }),
       });
+      if (isAc) {
+        await fetch(`${API}/api/ac/vendor/?vendor=${encodeURIComponent(addDeviceAcProtocol)}`, { method: 'POST' }).catch(() => undefined);
+        await fetch(`${API}/api/ac/temp/?value=${addDeviceAcTemp}`, { method: 'POST' }).catch(() => undefined);
+        await fetch(`${API}/api/ac/mode/?mode=${encodeURIComponent(addDeviceAcMode)}`, { method: 'POST' }).catch(() => undefined);
+        await fetch(`${API}/api/ac/fan/?fan=${encodeURIComponent(addDeviceAcFan)}`, { method: 'POST' }).catch(() => undefined);
+      }
       if (res.ok) {
-        setAddSuccessNotice(`Successfully added "${addDeviceName.trim()}" to Zone ${addDeviceZoneNum}`);
-        setAddDeviceName(`Zone ${addDeviceZoneNum} ${addDeviceType === 'lights' ? 'Light' : addDeviceType === 'fans' ? 'Fan' : 'AC'}`);
+        setAddSuccessNotice(`Successfully added "${addDeviceName.trim()}" ${isAc ? `(Brand: ${addDeviceAcProtocol} • ${addDeviceAcTemp}°C • IR Remote • No Relay)` : `to Zone ${addDeviceZoneNum}`}`);
+        setAddDeviceName(isAc ? 'Universal AC Remote' : `Zone ${addDeviceZoneNum} ${addDeviceType === 'lights' ? 'Light' : 'Fan'}`);
         await loadAllData();
       }
     } catch (err) {
@@ -2730,13 +2830,62 @@ Turning off ACs 15 mins before leaving saves approximately ~₹320/month without
                   </div>
                 </div>
 
-                {/* 2. Environmental Sensor Hardware Card */}
+                {/* 2. ESP32 LAN Controller & Environmental Sensor Card */}
                 <div className="module-card">
-                  <h3 style={{ marginBottom: 14 }}>Environmental Sensor (ESP32-HTU21DF)</h3>
-                  <div className="action-row-item">
-                    <span>ESP32 Hardware IP</span>
-                    <span className="mono-badge">192.168.1.184</span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                    <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>📡 ESP32 LAN Controller (Relays & IR)</h3>
+                    <span style={{ fontSize: 11, background: '#EAF5DD', color: '#006934', padding: '3px 8px', borderRadius: 12, fontWeight: 700, border: '1px solid #C2E2A8' }}>
+                      {esp32Address}
+                    </span>
                   </div>
+                  
+                  {/* Preset chips */}
+                  <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      onClick={() => { setEsp32DraftAddress('http://192.168.137.97'); void handleSaveEsp32Address('http://192.168.137.97'); }}
+                      style={{ padding: '4px 10px', fontSize: 11, borderRadius: 6, border: '1px solid #CBD5E1', background: esp32Address === 'http://192.168.137.97' ? '#006934' : '#F8FAFC', color: esp32Address === 'http://192.168.137.97' ? '#FFF' : '#334155', cursor: 'pointer', fontWeight: 700 }}
+                    >
+                      192.168.137.97 (Hotspot Default)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setEsp32DraftAddress('http://192.168.137.52'); void handleSaveEsp32Address('http://192.168.137.52'); }}
+                      style={{ padding: '4px 10px', fontSize: 11, borderRadius: 6, border: '1px solid #CBD5E1', background: esp32Address === 'http://192.168.137.52' ? '#006934' : '#F8FAFC', color: esp32Address === 'http://192.168.137.52' ? '#FFF' : '#334155', cursor: 'pointer', fontWeight: 700 }}
+                    >
+                      192.168.137.52 (Static IP)
+                    </button>
+                  </div>
+
+                  <div className="action-row-item">
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: 13, color: '#0F172A' }}>ESP32 Controller URL</div>
+                      <div style={{ fontSize: 11, color: '#64748B' }}>Direct address for relays, IR transmitter, & HTU21DF sensor</div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <input
+                        type="text"
+                        value={esp32DraftAddress}
+                        onChange={(e) => setEsp32DraftAddress(e.target.value)}
+                        placeholder="http://192.168.137.97"
+                        style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #CBD5E1', fontSize: 12.5, fontWeight: 700, width: 180 }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => void handleSaveEsp32Address(esp32DraftAddress)}
+                        style={{ padding: '6px 12px', background: '#006934', color: '#FFF', borderRadius: 6, border: 'none', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                      >
+                        Save
+                      </button>
+                    </div>
+                  </div>
+
+                  {esp32SaveNotice && (
+                    <div style={{ margin: '8px 0', padding: '6px 10px', background: '#EAF5DD', color: '#006934', borderRadius: 6, fontSize: 12, fontWeight: 700 }}>
+                      ✓ {esp32SaveNotice}
+                    </div>
+                  )}
+
                   <div className="action-row-item">
                     <span>HTU21DF Live Telemetry</span>
                     <span className="green-badge">Live: {sensor.temperature.toFixed(1)}°C • {sensor.humidity.toFixed(0)}% RH</span>
@@ -2748,7 +2897,7 @@ Turning off ACs 15 mins before leaving saves approximately ~₹320/month without
                   <h3 style={{ marginBottom: 14 }}>Universal AC Remote (IRremoteESP8266)</h3>
                   <div className="action-row-item">
                     <span>WiFi SSID</span>
-                    <span className="mono-badge">Marshal027</span>
+                    <span className="mono-badge">RehanLP</span>
                   </div>
                   <div className="action-row-item">
                     <span>IR Receiver Pin</span>
@@ -3742,8 +3891,12 @@ Turning off ACs 15 mins before leaving saves approximately ~₹320/month without
                             className={`type-choice-card ${isSelected ? 'active' : ''}`}
                             onClick={() => {
                               setAddDeviceType(type.id as any);
-                              const zoneName = `Zone ${addDeviceZoneNum}`;
-                              setAddDeviceName(`${zoneName} ${type.label}`);
+                              if (type.id === 'ac') {
+                                setAddDeviceName('Universal AC Remote');
+                              } else {
+                                const zoneName = `Zone ${addDeviceZoneNum}`;
+                                setAddDeviceName(`${zoneName} ${type.label}`);
+                              }
                             }}
                           >
                             <Icon name={type.icon} size={22} color={isSelected ? '#006934' : '#6B7280'} />
@@ -3753,6 +3906,103 @@ Turning off ACs 15 mins before leaving saves approximately ~₹320/month without
                       })}
                     </div>
                   </div>
+
+                  {/* AC Specific Hardware IR Banner & Configuration */}
+                  {addDeviceType === 'ac' && (
+                    <div className="form-group" style={{ background: 'var(--canvas, #F7F4E8)', border: '1.5px solid var(--border-card, #E3E5D8)', borderRadius: 14, padding: '16px 18px', color: 'var(--text-primary, #0E1F16)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, color: 'var(--primary, #006934)', fontWeight: 800, fontSize: 14 }}>
+                        <Icon name="sensors" size={20} color="#006934" />
+                        <span>Universal IR AC Remote (Wireless • No Hardware Relay)</span>
+                      </div>
+                      <p style={{ margin: '0 0 14px', fontSize: 12.5, color: 'var(--text-secondary, #4B5563)', lineHeight: 1.5 }}>
+                        Wirelessly operated using the IR transmitter on GPIO 4 & receiver on GPIO 14. 
+                        Relays 1-4 remain completely dedicated to lights and fans.
+                      </p>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
+                        {/* Brand / Vendor Protocol */}
+                        <div>
+                          <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary, #4B5563)', display: 'block', marginBottom: 4 }}>
+                            AC Brand / Vendor Protocol:
+                          </label>
+                          <select
+                            value={addDeviceAcProtocol}
+                            onChange={e => setAddDeviceAcProtocol(e.target.value)}
+                            className="form-select-input"
+                            style={{ background: '#FFFFFF', color: '#0E1F16', borderColor: '#E3E5D8', width: '100%' }}
+                          >
+                            {AC_VENDOR_PROTOCOLS.map(vnd => (
+                              <option key={vnd} value={vnd}>{vnd}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* Default Temperature */}
+                        <div>
+                          <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary, #4B5563)', display: 'block', marginBottom: 4 }}>
+                            Default Temperature:
+                          </label>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <input
+                              type="number"
+                              min={16}
+                              max={30}
+                              value={addDeviceAcTemp}
+                              onChange={e => setAddDeviceAcTemp(Math.max(16, Math.min(30, Number(e.target.value))))}
+                              className="form-text-input"
+                              style={{ width: '80px', textAlign: 'center', fontWeight: 800, background: '#FFFFFF', borderColor: '#E3E5D8' }}
+                            />
+                            <span style={{ fontSize: 13, fontWeight: 700, color: '#006934' }}>&deg;C (16 - 30&deg;C)</span>
+                          </div>
+                        </div>
+
+                        {/* Default Operating Mode */}
+                        <div>
+                          <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary, #4B5563)', display: 'block', marginBottom: 4 }}>
+                            Default Mode:
+                          </label>
+                          <select
+                            value={addDeviceAcMode}
+                            onChange={e => setAddDeviceAcMode(e.target.value)}
+                            className="form-select-input"
+                            style={{ background: '#FFFFFF', color: '#0E1F16', borderColor: '#E3E5D8', width: '100%' }}
+                          >
+                            <option value="cool">Cool (Default)</option>
+                            <option value="heat">Heat</option>
+                            <option value="dry">Dry</option>
+                            <option value="fan">Fan Only</option>
+                            <option value="auto">Auto</option>
+                          </select>
+                        </div>
+
+                        {/* Default Fan Speed */}
+                        <div>
+                          <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary, #4B5563)', display: 'block', marginBottom: 4 }}>
+                            Default Fan Speed:
+                          </label>
+                          <select
+                            value={addDeviceAcFan}
+                            onChange={e => setAddDeviceAcFan(e.target.value)}
+                            className="form-select-input"
+                            style={{ background: '#FFFFFF', color: '#0E1F16', borderColor: '#E3E5D8', width: '100%' }}
+                          >
+                            <option value="auto">Auto (Default)</option>
+                            <option value="low">Low</option>
+                            <option value="medium">Medium</option>
+                            <option value="high">High</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Presence Automation Notice */}
+                      <div style={{ marginTop: 14, padding: '10px 12px', background: 'var(--surface-green, #EAF5DD)', border: '1px solid #C2E2A8', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <Icon name="verified" size={18} color="#006934" />
+                        <span style={{ fontSize: 12, fontWeight: 600, color: '#006934' }}>
+                          Presence Automation: Turns ON when humans are detected in the room, and OFF when empty. Remaining controls can be adjusted anytime via Universal AC Remote or physical 21-key remote.
+                        </span>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Step 4: Device Details */}
                   <div className="form-row-2">
@@ -3776,7 +4026,7 @@ Turning off ACs 15 mins before leaving saves approximately ~₹320/month without
                       </label>
                       <input
                         type="text"
-                        value={`${selectedAddDeviceLayout.name} • Zone ${addDeviceZoneNum}`}
+                        value={addDeviceType === 'ac' ? `${selectedAddDeviceLayout.name} • Entire Room Climate (IR Remote)` : `${selectedAddDeviceLayout.name} • Zone ${addDeviceZoneNum}`}
                         disabled
                         className="form-text-input disabled"
                       />
@@ -3840,40 +4090,58 @@ Turning off ACs 15 mins before leaving saves approximately ~₹320/month without
               ))}
             </div>
 
+            {/* When AC filter is active, or if user wants AC remote: show Universal AC Remote panel prominently */}
+            {deviceFilter === 'ac' && (
+              <div style={{ marginBottom: 24 }}>
+                <UniversalAcRemote apiBaseUrl={API} showBrandSelector={false} />
+              </div>
+            )}
+
             {/* Devices Grid */}
             <div className="devices-full-grid">
-              {filteredDevices.map(dev => (
-                <div key={dev.id} className={`device-card-item ${dev.status === 'ON' ? 'is-on' : ''}`}>
-                  <div className="device-card-header">
-                    <div className="device-icon-wrapper">
-                      <Icon
-                        name={dev.category === 'lights' ? 'lightbulb' : dev.category === 'fans' ? 'mode_fan' : 'ac_unit'}
-                        size={22}
-                        color={dev.status === 'ON' ? '#006934' : '#6B7280'}
-                      />
+              {filteredDevices.map(dev => {
+                if (dev.category === 'ac' && deviceFilter !== 'ac') {
+                  return (
+                    <div key={dev.id} style={{ gridColumn: '1 / -1', maxWidth: 480, margin: '0 auto', width: '100%' }}>
+                      <UniversalAcRemote apiBaseUrl={API} initialProtocol="MITSUBISHI_AC" showBrandSelector={false} />
                     </div>
-                    <button
-                      type="button"
-                      className={`device-toggle-btn ${dev.status === 'ON' ? 'on' : 'off'}`}
-                      onClick={() => handleToggleSingleDevice(dev)}
-                    >
-                      {dev.status}
-                    </button>
-                  </div>
+                  );
+                }
+                return (
+                  <div key={dev.id} className={`device-card-item ${dev.status === 'ON' ? 'is-on' : ''}`}>
+                    <div className="device-card-header">
+                      <div className="device-icon-wrapper">
+                        <Icon
+                          name={dev.category === 'lights' ? 'lightbulb' : dev.category === 'fans' ? 'mode_fan' : 'ac_unit'}
+                          size={22}
+                          color={dev.status === 'ON' ? '#006934' : '#6B7280'}
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        className={`device-toggle-btn ${dev.status === 'ON' ? 'on' : 'off'}`}
+                        onClick={() => handleToggleSingleDevice(dev)}
+                      >
+                        {dev.status}
+                      </button>
+                    </div>
 
-                  <div className="device-card-body">
-                    <h4 className="device-card-name">{dev.name}</h4>
-                    <div className="device-meta-badges">
-                      <span className="meta-badge-zone">
-                        {dev.quadrants && dev.quadrants.length > 1
-                          ? `Zones ${dev.quadrants.join(', ')}`
-                          : `Zone ${dev.quadrantNum || 1}`}
-                      </span>
-                      <span className="meta-badge-watts">{dev.powerWatts || 40}W</span>
+                    <div className="device-card-body">
+                      <h4 className="device-card-name">{dev.name}</h4>
+                      <div className="device-meta-badges">
+                        <span className="meta-badge-zone">
+                          {dev.category === 'ac'
+                            ? 'Universal IR Remote'
+                            : dev.quadrants && dev.quadrants.length > 1
+                            ? `Zones ${dev.quadrants.join(', ')}`
+                            : `Zone ${dev.quadrantNum || 1}`}
+                        </span>
+                        <span className="meta-badge-watts">{dev.powerWatts || 40}W</span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}

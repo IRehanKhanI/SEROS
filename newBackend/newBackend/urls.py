@@ -5,6 +5,8 @@ urlpatterns = [
     path("api/ping/", views.ping),
     path("api/state/", views.state),
     path("api/devices/", views.devices_api),
+    path("api/devices/control/", views.control_device_relay),
+    path("api/relay/", views.control_device_relay),
     path("api/devices/<str:device_id>/", views.device_detail),
     path("api/devices/<str:device_id>/update/", views.device_detail),
     path("api/devices/<str:device_id>/delete/", views.device_detail),
@@ -16,7 +18,7 @@ urlpatterns = [
     path("api/camera/latest/", views.latest_camera_frame),
     path("api/camera/frame/", views.latest_camera_frame),
     path("api/sections/", views.sections_api),
-    path("api/sections/<int:section_id>/", views.delete_section),
+    path("api/esp32/ip/", views.esp32_ip_api),
     path("api/esp32/status/", views.esp32_status),
     path("api/layouts/", views.layouts_api),
     path("api/layouts/select/", views.select_layout),
@@ -24,5 +26,15 @@ urlpatterns = [
     path("api/sensor/", views.sensor_data),
     path("api/weather/", views.weather_api),
     path("api/ai-automap/", views.ai_automap),
+    # Universal AC IR Remote Endpoints
+    path("api/ac/status/", views.ac_status_api),
+    path("api/ac/learn/", views.ac_learn_api),
+    path("api/ac/cancel/", views.ac_cancel_api),
+    path("api/ac/vendor/", views.ac_vendor_api),
+    path("api/ac/power/", views.ac_power_api),
+    path("api/ac/temp/", views.ac_temp_api),
+    path("api/ac/mode/", views.ac_mode_api),
+    path("api/ac/fan/", views.ac_fan_api),
+    path("api/ac/send/", views.ac_send_api),
 ]
 

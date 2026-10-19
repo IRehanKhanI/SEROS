@@ -130,6 +130,15 @@ def get_device_quadrant(device):
     return 1
 
 
+_ac_settings = {
+    "vendor": "MITSUBISHI_AC",
+    "protocol": "MITSUBISHI_AC",
+    "mode": "cool",
+    "fan": "auto",
+    "temperature": 24,
+}
+
+
 def _device_payload(device):
     status = "ON" if device.is_on else "OFF"
     assigned_zone = device.zones.first()
@@ -137,7 +146,7 @@ def _device_payload(device):
     quadrant_num = get_device_quadrant(device)
     quadrant_label = f"Quadrant {quadrant_num}"
     quadrant_pos = QUADRANT_POSITIONS.get(quadrant_num, "Top-Left")
-    pin = QUADRANT_PINS.get(quadrant_num, 16)
+    pin = None if device.category == "ac" else QUADRANT_PINS.get(quadrant_num, 16)
 
     # Determine rated wattage (lights: 24W, fans: 65W, ac: 1450W, other: 40W)
     default_watts = 1450 if device.category == "ac" else 65 if device.category == "fans" else 24
@@ -147,8 +156,12 @@ def _device_payload(device):
     # Multi-quadrant list (AC units default to all 4 quadrants [1, 2, 3, 4])
     if device.category == "ac":
         quadrants = [1, 2, 3, 4]
+        relay_val = None
+        automation_note = "Universal IR Remote Controller (GPIO 4/14) • No Hardware Relay"
     else:
         quadrants = [quadrant_num]
+        relay_val = device.relay if device.relay in [1, 2, 3, 4] else quadrant_num
+        automation_note = f"Quadrant {quadrant_num} ({quadrant_pos}) Presence • Relay {relay_val}"
 
     return {
         "id": device.device_id,
@@ -167,11 +180,16 @@ def _device_payload(device):
         "powerWatts": active_watts,
         "ratedWatts": rated_watts,
         "isAutomated": not device.manual_override,
-        "automationNote": f"Quadrant {quadrant_num} ({quadrant_pos}) Presence • Relay {quadrant_num}",
+        "automationNote": automation_note,
         "zoneId": str(assigned_zone.id) if assigned_zone else None,
-        "relay": quadrant_num,
+        "relay": relay_val,
         "temperature": 26.4,
-        "targetTemperature": device.target_temperature or 24.0,
+        "targetTemperature": device.target_temperature or _ac_settings.get("temperature", 24.0),
+        "target_temperature": device.target_temperature or _ac_settings.get("temperature", 24.0),
+        "vendor": _ac_settings.get("vendor", "MITSUBISHI_AC"),
+        "protocol": _ac_settings.get("protocol", "MITSUBISHI_AC"),
+        "mode": _ac_settings.get("mode", "cool"),
+        "fan": _ac_settings.get("fan", "auto"),
     }
 
 
@@ -279,22 +297,50 @@ def state(request):
     if request.method == "OPTIONS":
         return _response({})
     sections = list(Section.objects.all().order_by("id"))
-    devices = [_device_payload(device) for device in Device.objects.select_related("section").all()]
     
-    # Live sensor reading from ESP32 or calibrated baseline
+    # Live sensor reading & hardware synchronization from ESP32
     temp = 26.4
     humidity = 58.0
     source = "ESP32-HTU21DF"
-    esp_connected = True
+    esp_connected = False
     try:
         esp = _esp32_request("/api/status")
-        if esp.get("status") == "ok":
+        if isinstance(esp, dict) and esp.get("status") == "ok":
+            esp_connected = True
             if esp.get("temperature") is not None:
                 temp = round(float(esp["temperature"]), 1)
             if esp.get("humidity") is not None:
                 humidity = round(float(esp["humidity"]), 1)
+
+            # 1. Sync physical relay states changed via physical mini remote or buttons
+            relays = esp.get("relays")
+            if isinstance(relays, list) and len(relays) == 4:
+                for idx, r_state in enumerate(relays):
+                    r_num = idx + 1
+                    Device.objects.filter(relay=r_num).exclude(is_on=bool(r_state)).update(is_on=bool(r_state))
+
+            # 2. Sync AC power and settings from mini remote / ESP32 state
+            ac_power = esp.get("ac_power")
+            if ac_power is not None:
+                ac_qs = Device.objects.filter(category="ac")
+                ac_qs.exclude(is_on=bool(ac_power)).update(is_on=bool(ac_power))
+                if esp.get("ac_temperature") is not None:
+                    try:
+                        ac_qs.update(target_temperature=float(esp["ac_temperature"]))
+                        _ac_settings["temperature"] = int(esp["ac_temperature"])
+                    except Exception:
+                        pass
+            if esp.get("ac_protocol") and esp["ac_protocol"] != "UNKNOWN":
+                _ac_settings["vendor"] = esp["ac_protocol"]
+                _ac_settings["protocol"] = esp["ac_protocol"]
+            if esp.get("ac_mode"):
+                _ac_settings["mode"] = esp["ac_mode"]
+            if esp.get("ac_fan"):
+                _ac_settings["fan"] = esp["ac_fan"]
     except Exception:
         pass
+
+    devices = [_device_payload(device) for device in Device.objects.select_related("section").all()]
 
     from .camera_service import is_camera_enabled
     camera_on = is_camera_enabled()
@@ -326,18 +372,113 @@ def state(request):
 
 
 
+_active_esp32_url = getattr(settings, "SEROS_ESP32_URL", "http://192.168.137.97")
+
+
+def get_active_esp32_url():
+    global _active_esp32_url
+    if not _active_esp32_url:
+        _active_esp32_url = getattr(settings, "SEROS_ESP32_URL", "http://192.168.137.97")
+    return _active_esp32_url.rstrip("/")
+
+
 def _esp32_request(path, method="GET", payload=None):
-    if not settings.SEROS_ESP32_URL:
-        return {"status": "unconfigured", "message": "SEROS_ESP32_URL is not configured."}
-    url = settings.SEROS_ESP32_URL.rstrip("/") + path
+    """
+    Proxies requests to ESP32 with automatic IP candidate fallback (192.168.137.97, 192.168.137.52).
+    Caches the first reachable host to avoid latency on subsequent calls.
+    """
+    global _active_esp32_url
+    candidates = []
+    current = get_active_esp32_url()
+    if current:
+        candidates.append(current)
+    for fallback in ["http://192.168.137.97", "http://192.168.137.52"]:
+        clean = fallback.rstrip("/")
+        if clean not in candidates:
+            candidates.append(clean)
+
     body = json.dumps(payload).encode() if payload is not None else None
-    request = urllib.request.Request(url, data=body, method=method,
-                                     headers={"Content-Type": "application/json"})
+    last_exc = None
+
+    for base in candidates:
+        url = base + path
+        request = urllib.request.Request(url, data=body, method=method,
+                                         headers={"Content-Type": "application/json"})
+        try:
+            with urllib.request.urlopen(request, timeout=1.2) as response:
+                data = json.loads(response.read().decode())
+                _active_esp32_url = base
+                return data
+        except Exception as exc:
+            last_exc = exc
+            continue
+
+    raise ConnectionError(f"ESP32 is unreachable on candidates {candidates}: {last_exc}")
+
+
+@csrf_exempt
+def control_device_relay(request):
+    """
+    Direct relay control endpoint (called by frontend /api/devices/control/ or /api/relay/).
+    Expects JSON: {"relay": 1..4, "state": 0|1} or query params ?relay=1&state=1
+    """
+    if request.method == "OPTIONS":
+        return _response({})
+    relay = None
+    state_val = None
+    if request.body:
+        try:
+            data = _json(request)
+            relay = data.get("relay") or data.get("id")
+            state_val = data.get("state") if "state" in data else (1 if data.get("on") else 0)
+        except Exception:
+            pass
+    if relay is None:
+        relay = request.GET.get("relay") or request.GET.get("id")
+    if state_val is None:
+        state_val = request.GET.get("state") or request.GET.get("on")
+
+    if relay is None or state_val is None:
+        return _response({"error": "relay and state are required."}, 400)
+
     try:
-        with urllib.request.urlopen(request, timeout=2) as response:
-            return json.loads(response.read().decode())
-    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
-        raise ConnectionError(f"ESP32 is unreachable: {exc}") from exc
+        relay_num = int(relay)
+        state_int = 1 if (str(state_val) in ["1", "true", "True"]) else 0
+
+        # Update database device if mapped to this relay
+        Device.objects.filter(relay=relay_num).update(is_on=bool(state_int))
+
+        # Forward directly to ESP32
+        res = _esp32_request(f"/api/relay?id={relay_num}&state={state_int}")
+        return _response({"status": "ok", "relay": relay_num, "state": state_int, "esp32": res})
+    except Exception as exc:
+        return _response({"status": "simulated", "relay": relay, "state": state_val, "error": str(exc)})
+
+
+@csrf_exempt
+def esp32_ip_api(request):
+    """
+    Runtime inspection and configuration of ESP32 IP address.
+    GET /api/esp32/ip/ -> {"status": "ok", "ip": "192.168.137.97", "url": "http://192.168.137.97"}
+    POST /api/esp32/ip/ with {"ip": "192.168.137.97"} -> updates active URL
+    """
+    global _active_esp32_url
+    if request.method == "OPTIONS":
+        return _response({})
+    if request.method == "POST":
+        try:
+            data = _json(request)
+            new_ip = (data.get("ip") or data.get("url") or "").strip()
+            if new_ip:
+                if not new_ip.startswith("http://") and not new_ip.startswith("https://"):
+                    new_ip = f"http://{new_ip}"
+                _active_esp32_url = new_ip.rstrip("/")
+        except Exception:
+            pass
+    active = get_active_esp32_url()
+    clean_ip = active.replace("http://", "").replace("https://", "").split(":")[0]
+    return _response({"status": "ok", "url": active, "ip": clean_ip})
+
 
 
 @csrf_exempt
@@ -410,13 +551,29 @@ def devices_api(request):
             if Device.objects.filter(device_id=device_id).exists():
                 device_id = f"{device_id}-{uuid.uuid4().hex[:4]}"
 
-            relay = data.get("relay")
-            if relay is None or str(relay).strip() == "":
-                relay = quadrant_num  # default relay to quadrant number (1, 2, 3, or 4)
-            relay = int(relay) if str(relay).isdigit() else quadrant_num
+            if category == "ac":
+                relay = None
+                vendor = data.get("vendor") or data.get("protocol")
+                if vendor:
+                    try:
+                        from urllib.parse import quote
+                        _esp32_request(f"/api/ac/vendor?vendor={quote(str(vendor))}")
+                    except Exception:
+                        pass
+            else:
+                relay = data.get("relay")
+                if relay is None or str(relay).strip() == "":
+                    relay = quadrant_num  # default relay to quadrant number (1, 2, 3, or 4)
+                relay = int(relay) if str(relay).isdigit() else quadrant_num
 
-            default_watts = 44.0 if category == "lights" else (38.0 if category == "fans" else 1200.0)
+            default_watts = 44.0 if category == "lights" else (38.0 if category == "fans" else 1450.0)
             power_watts = float(data.get("power_watts") or default_watts)
+            target_temp = float(data.get("target_temperature") or data.get("targetTemperature") or 24.0)
+            if category == "ac":
+                try:
+                    _esp32_request(f"/api/ac/temp?value={int(target_temp)}")
+                except Exception:
+                    pass
 
             device = Device.objects.create(
                 section=section,
@@ -425,6 +582,7 @@ def devices_api(request):
                 category=category,
                 relay=relay,
                 power_watts=power_watts,
+                target_temperature=target_temp,
                 is_on=False,
                 speed=0,
             )
@@ -472,16 +630,55 @@ def device_detail(request, device_id):
                 except (ValueError, TypeError):
                     pass
 
-            quadrant_raw = data.get("quadrant") or data.get("quadrantNum") or data.get("relay")
-            if quadrant_raw is not None and str(quadrant_raw).isdigit():
-                q_num = int(quadrant_raw)
-                if q_num in [1, 2, 3, 4]:
-                    device.relay = q_num
-                    quadrant_name = f"Quadrant {q_num}"
-                    zone = Zone.objects.filter(section=device.section, name__icontains=quadrant_name).first()
-                    if zone:
-                        device.zones.clear()
-                        zone.assigned_devices.add(device)
+            if "target_temperature" in data or "targetTemperature" in data or "temp" in data:
+                try:
+                    t_val = float(data.get("target_temperature") or data.get("targetTemperature") or data.get("temp") or 24.0)
+                    device.target_temperature = t_val
+                    _ac_settings["temperature"] = int(t_val)
+                    if device.category == "ac":
+                        try:
+                            _esp32_request(f"/api/ac/temp?value={int(t_val)}")
+                        except Exception:
+                            pass
+                except (ValueError, TypeError):
+                    pass
+
+            if device.category == "ac":
+                device.relay = None
+                vendor = data.get("vendor") or data.get("protocol")
+                if vendor:
+                    _ac_settings["vendor"] = str(vendor)
+                    _ac_settings["protocol"] = str(vendor)
+                    try:
+                        from urllib.parse import quote
+                        _esp32_request(f"/api/ac/vendor?vendor={quote(str(vendor))}")
+                    except Exception:
+                        pass
+                mode = data.get("mode")
+                if mode:
+                    _ac_settings["mode"] = str(mode)
+                    try:
+                        _esp32_request(f"/api/ac/mode?mode={str(mode)}")
+                    except Exception:
+                        pass
+                fan = data.get("fan") or data.get("fanspeed")
+                if fan:
+                    _ac_settings["fan"] = str(fan)
+                    try:
+                        _esp32_request(f"/api/ac/fan?fan={str(fan)}")
+                    except Exception:
+                        pass
+            else:
+                quadrant_raw = data.get("quadrant") or data.get("quadrantNum") or data.get("relay")
+                if quadrant_raw is not None and str(quadrant_raw).isdigit():
+                    q_num = int(quadrant_raw)
+                    if q_num in [1, 2, 3, 4]:
+                        device.relay = q_num
+                        quadrant_name = f"Quadrant {q_num}"
+                        zone = Zone.objects.filter(section=device.section, name__icontains=quadrant_name).first()
+                        if zone:
+                            device.zones.clear()
+                            zone.assigned_devices.add(device)
 
             device.save()
             return _response({"status": "ok", "device": _device_payload(device)})
@@ -511,11 +708,37 @@ def control_device(request, device_id):
         if "speed" in data:
             device.speed = max(0, min(3, int(data["speed"])))
             device.is_on = device.speed > 0
+        if "target_temperature" in data or "temp" in data:
+            try:
+                device.target_temperature = float(data.get("target_temperature") or data.get("temp") or 24.0)
+            except (ValueError, TypeError):
+                pass
         device.save()
-        relay_num = device.relay or get_device_quadrant(device)
+
         state_icon = "🟢 [ON]" if device.is_on else "🔴 [OFF]"
         print(f"\n========================================")
-        print(f"{state_icon} Device: {device.name} (ID: {device.device_id})")
+        print(f"{state_icon} Device: {device.name} (ID: {device.device_id}, Category: {device.category})")
+
+        if device.category == "ac":
+            # Universal AC IR Remote Control - NO RELAY
+            print(f"📡 Universal IR Remote Control (GPIO 4/14) - No Hardware Relay")
+            try:
+                if "on" in data:
+                    _esp32_request(f"/api/ac/power?on={1 if device.is_on else 0}")
+                if "target_temperature" in data or "temp" in data:
+                    _esp32_request(f"/api/ac/temp?value={int(device.target_temperature)}")
+                if "mode" in data:
+                    _esp32_request(f"/api/ac/mode?mode={data['mode']}")
+                if "fan" in data:
+                    _esp32_request(f"/api/ac/fan?fan={data['fan']}")
+                if "vendor" in data:
+                    _esp32_request(f"/api/ac/vendor?vendor={data['vendor']}")
+            except Exception as esp_err:
+                print(f"❌ ESP32 AC IR Communication Failed: {esp_err}")
+            print(f"========================================\n")
+            return _response({"status": "ok", "device": _device_payload(device)})
+
+        relay_num = device.relay or get_device_quadrant(device)
         print(f"⚡ Quadrant / Relay: {relay_num} | State: {'ON' if device.is_on else 'OFF'}")
         
         if relay_num:
@@ -673,6 +896,21 @@ def _apply_automation(section_id, boxes):
     all_devices = list(Device.objects.all())
     any_person_in_room = len(boxes) > 0
 
+    # Dedicated room-wide AC presence automation:
+    # Turns ON AC when a person is present, turns OFF when empty.
+    ac_devices = [d for d in all_devices if d.category == "ac"]
+    for ac_dev in ac_devices:
+        new_ac_on = any_person_in_room
+        if ac_dev.is_on != new_ac_on or ac_dev.manual_override:
+            ac_dev.is_on = new_ac_on
+            ac_dev.manual_override = False
+            ac_dev.save(update_fields=["is_on", "manual_override"])
+            try:
+                _esp32_request(f"/api/ac/power?on={1 if new_ac_on else 0}")
+                print(f"{'🟢 [AC ON]' if new_ac_on else '🔴 [AC OFF]'} [AUTOMATION] AC power -> {new_ac_on} (Person in room: {any_person_in_room})")
+            except Exception as exc:
+                logger.debug("ESP32 AC power command failed: %s", exc)
+
     if zones:
         relay_states = {}
         for z in zones:
@@ -688,14 +926,14 @@ def _apply_automation(section_id, boxes):
             # If multiple zones share a relay, keep ON if any zone is occupied
             relay_states[relay] = relay_states.get(relay, False) or z_occupied
 
-            # Update devices assigned to this zone/relay
+            # Update devices assigned to this zone/relay (non-AC devices)
             z_num = int(z.get("num") or relay)
             matching_devs = [
                 d for d in all_devices
-                if (d.relay == relay) or (get_device_quadrant(d) == z_num) or (getattr(d, "quadrantNum", None) == z_num)
+                if d.category != "ac" and ((d.relay == relay) or (get_device_quadrant(d) == z_num) or (getattr(d, "quadrantNum", None) == z_num))
             ]
             for dev in matching_devs:
-                new_on = bool(z_occupied) if dev.category != "ac" else any_person_in_room
+                new_on = bool(z_occupied)
                 new_speed = (2 if dev.category == "fans" else 0) if new_on else 0
                 if dev.is_on != new_on or dev.speed != new_speed or dev.manual_override:
                     dev.is_on = new_on
@@ -732,9 +970,9 @@ def _apply_automation(section_id, boxes):
 
     for q in [1, 2, 3, 4]:
         is_occupied = quadrant_occupied[q]
-        q_devices = [d for d in all_devices if get_device_quadrant(d) == q]
+        q_devices = [d for d in all_devices if d.category != "ac" and get_device_quadrant(d) == q]
         for dev in q_devices:
-            new_is_on = bool(is_occupied) if dev.category != "ac" else any_person_in_room
+            new_is_on = bool(is_occupied)
             new_speed = (2 if dev.category == "fans" else 0) if new_is_on else 0
             if dev.is_on != new_is_on or dev.speed != new_speed or dev.relay != q or dev.manual_override:
                 dev.is_on = new_is_on
@@ -1109,6 +1347,184 @@ def esp32_status(request):
         return _response(_esp32_request("/api/status"))
     except ConnectionError as exc:
         return _response({"status": "unreachable", "error": str(exc)}, 503)
+
+
+# ==============================================================================
+# Universal AC IR Remote API Endpoints (Proxies to ESP32 /api/ac/* with fallback)
+# ==============================================================================
+
+_ac_state = {
+    "protocol": "MITSUBISHI_AC",
+    "power": False,
+    "temperature": 24,
+    "mode": "cool",
+    "fan": "auto",
+    "learning": False,
+    "message": "Universal AC IR Remote Ready",
+}
+
+
+@csrf_exempt
+def ac_status_api(request):
+    if request.method == "OPTIONS":
+        return _response({})
+    try:
+        esp_res = _esp32_request("/api/status")
+        if isinstance(esp_res, dict):
+            _ac_state["protocol"] = esp_res.get("ac_protocol", _ac_state["protocol"])
+            _ac_state["power"] = bool(esp_res.get("ac_power", _ac_state["power"]))
+            _ac_state["temperature"] = int(esp_res.get("ac_temperature", _ac_state["temperature"]) or 24)
+            _ac_state["mode"] = esp_res.get("ac_mode", _ac_state["mode"])
+            _ac_state["fan"] = esp_res.get("ac_fan", _ac_state["fan"])
+            _ac_state["learning"] = bool(esp_res.get("learning", False))
+            _ac_state["message"] = esp_res.get("message", _ac_state["message"])
+            return _response({"status": "ok", "online": True, **_ac_state})
+    except Exception:
+        pass
+    return _response({"status": "ok", "online": False, **_ac_state})
+
+
+@csrf_exempt
+def ac_learn_api(request):
+    if request.method == "OPTIONS":
+        return _response({})
+    _ac_state["learning"] = True
+    _ac_state["message"] = "Listening for remote... point remote at receiver and press a button."
+    try:
+        res = _esp32_request("/api/ac/learn")
+        return _response(res)
+    except Exception:
+        return _response({"status": "learning", "target": "auto", "offline_simulated": True})
+
+
+@csrf_exempt
+def ac_cancel_api(request):
+    if request.method == "OPTIONS":
+        return _response({})
+    _ac_state["learning"] = False
+    _ac_state["message"] = "Learning cancelled."
+    try:
+        res = _esp32_request("/api/ac/cancel")
+        return _response(res)
+    except Exception:
+        return _response({"status": "cancelled", "offline_simulated": True})
+
+
+@csrf_exempt
+def ac_vendor_api(request):
+    if request.method == "OPTIONS":
+        return _response({})
+    vendor = request.GET.get("vendor") or ""
+    if not vendor and request.body:
+        try:
+            body = _json(request)
+            vendor = body.get("vendor", "")
+        except Exception:
+            pass
+    if vendor:
+        _ac_state["protocol"] = vendor
+        _ac_state["message"] = f"Protocol set: {vendor}"
+    try:
+        res = _esp32_request(f"/api/ac/vendor?vendor={vendor}")
+        return _response(res)
+    except Exception:
+        return _response({"status": "ok", "vendor": vendor, "offline_simulated": True, **_ac_state})
+
+
+@csrf_exempt
+def ac_power_api(request):
+    if request.method == "OPTIONS":
+        return _response({})
+    on_arg = request.GET.get("on") or request.GET.get("power")
+    if on_arg is None and request.body:
+        try:
+            body = _json(request)
+            on_arg = "1" if body.get("on") or body.get("power") else "0"
+        except Exception:
+            pass
+    is_on = (on_arg == "1" or str(on_arg).lower() == "true")
+    _ac_state["power"] = is_on
+    try:
+        res = _esp32_request(f"/api/ac/power?on={1 if is_on else 0}")
+        return _response(res)
+    except Exception:
+        return _response({"status": "ok", "power": is_on, "offline_simulated": True, **_ac_state})
+
+
+@csrf_exempt
+def ac_temp_api(request):
+    if request.method == "OPTIONS":
+        return _response({})
+    val = request.GET.get("value") or request.GET.get("temp")
+    if val is None and request.body:
+        try:
+            body = _json(request)
+            val = body.get("value") or body.get("temp") or body.get("target_temperature")
+        except Exception:
+            pass
+    try:
+        deg = max(16, min(30, int(val or 24)))
+    except (ValueError, TypeError):
+        deg = 24
+    _ac_state["temperature"] = deg
+    _ac_state["power"] = True
+    try:
+        res = _esp32_request(f"/api/ac/temp?value={deg}")
+        return _response(res)
+    except Exception:
+        return _response({"status": "ok", "temperature": deg, "offline_simulated": True, **_ac_state})
+
+
+@csrf_exempt
+def ac_mode_api(request):
+    if request.method == "OPTIONS":
+        return _response({})
+    mode = request.GET.get("mode") or ""
+    if not mode and request.body:
+        try:
+            body = _json(request)
+            mode = body.get("mode", "")
+        except Exception:
+            pass
+    if mode in ["cool", "heat", "dry", "fan", "auto"]:
+        _ac_state["mode"] = mode
+        _ac_state["power"] = True
+    try:
+        res = _esp32_request(f"/api/ac/mode?mode={mode}")
+        return _response(res)
+    except Exception:
+        return _response({"status": "ok", "mode": mode, "offline_simulated": True, **_ac_state})
+
+
+@csrf_exempt
+def ac_fan_api(request):
+    if request.method == "OPTIONS":
+        return _response({})
+    fan = request.GET.get("fan") or ""
+    if not fan and request.body:
+        try:
+            body = _json(request)
+            fan = body.get("fan", "")
+        except Exception:
+            pass
+    if fan in ["auto", "low", "medium", "high"]:
+        _ac_state["fan"] = fan
+    try:
+        res = _esp32_request(f"/api/ac/fan?fan={fan}")
+        return _response(res)
+    except Exception:
+        return _response({"status": "ok", "fan": fan, "offline_simulated": True, **_ac_state})
+
+
+@csrf_exempt
+def ac_send_api(request):
+    if request.method == "OPTIONS":
+        return _response({})
+    try:
+        res = _esp32_request("/api/ac/send")
+        return _response(res)
+    except Exception:
+        return _response({"status": "ok", "message": "AC state resend triggered", "offline_simulated": True, **_ac_state})
 
 
 # ==============================================================================

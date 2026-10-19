@@ -178,13 +178,15 @@ export const HomeView: React.FC = () => {
     }
     setIsSubmittingAdd(true);
     setAddError(null);
+    const isAc = newCategory === 'ac';
     try {
       await addDevice({
         quadrant: newQuadrant,
-        relay: newQuadrant,
+        quadrants: isAc ? [1, 2, 3, 4] : [newQuadrant],
+        relay: isAc ? undefined : newQuadrant,
         name,
         category: newCategory,
-        power_watts: parseFloat(newWatts) || 44,
+        power_watts: parseFloat(newWatts) || (isAc ? 1450 : 44),
       });
       setIsAddModalOpen(false);
     } catch (err: any) {
@@ -786,17 +788,31 @@ export const HomeView: React.FC = () => {
                 />
               </View>
 
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>POWER CONSUMPTION (WATTS)</Text>
-                <TextInput
-                  value={newWatts}
-                  onChangeText={setNewWatts}
-                  placeholder="44"
-                  keyboardType="numeric"
-                  placeholderTextColor={colors.textSecondary}
-                  style={styles.textInput}
-                />
-              </View>
+              {newCategory === 'ac' ? (
+                <View style={{ backgroundColor: '#0F172A', borderWidth: 1, borderColor: '#334155', borderRadius: 10, padding: 12 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                    <Icon name="sensors" size={16} color="#38BDF8" />
+                    <Text style={{ color: '#38BDF8', fontWeight: '800', fontSize: 13 }}>
+                      Universal IR Remote (No Relay Required)
+                    </Text>
+                  </View>
+                  <Text style={{ color: '#94A3B8', fontSize: 11.5, lineHeight: 16 }}>
+                    AC communicates wirelessly via ESP32 IR (GPIO 4 TX / 14 RX). Relays 1-4 remain completely free.
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>POWER CONSUMPTION (WATTS)</Text>
+                  <TextInput
+                    value={newWatts}
+                    onChangeText={setNewWatts}
+                    placeholder="44"
+                    keyboardType="numeric"
+                    placeholderTextColor={colors.textSecondary}
+                    style={styles.textInput}
+                  />
+                </View>
+              )}
 
               {addError && (
                 <View style={styles.errorNotice}>
