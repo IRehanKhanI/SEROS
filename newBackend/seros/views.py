@@ -2,6 +2,7 @@ import base64
 import json
 import logging
 import os
+import time
 import urllib.error
 import urllib.request
 from datetime import timedelta
@@ -104,6 +105,62 @@ QUADRANT_PINS = {
     4: 19,
 }
 
+# Physical installation mapping. Relay numbers are the ESP32 relay channels;
+# zone numbers describe the camera layout and are intentionally not identical.
+ZONE_TO_RELAY = {1: 3, 2: 2, 3: 1, 4: 4}
+RELAY_TO_ZONE = {relay: zone for zone, relay in ZONE_TO_RELAY.items()}
+
+# Camera detections can move by a few pixels between frames, especially when a
+# person is near a zone boundary. Keep the last location until a new location
+# is observed consistently instead of chattering the relays on every frame.
+_automation_tracking = {}
+_AUTOMATION_CONFIRM_FRAMES = 3
+_AUTOMATION_EMPTY_HOLD_SECONDS = 5.0
+
+
+def relay_for_zone(zone_num):
+    return ZONE_TO_RELAY.get(int(zone_num), int(zone_num))
+
+
+def zone_for_relay(relay_num):
+    return RELAY_TO_ZONE.get(int(relay_num), int(relay_num))
+
+
+def _stable_relay_states(section_id, raw_states, has_detection):
+    now = time.monotonic()
+    tracking = _automation_tracking.setdefault(section_id, {
+        "stable": None,
+        "candidate": None,
+        "candidate_frames": 0,
+        "last_seen": now,
+    })
+    normalized = {int(relay): bool(state) for relay, state in raw_states.items()}
+    stable = tracking["stable"]
+
+    if has_detection:
+        tracking["last_seen"] = now
+    elif stable is not None and now - tracking["last_seen"] < _AUTOMATION_EMPTY_HOLD_SECONDS:
+        return stable
+
+    if stable == normalized:
+        tracking["candidate"] = None
+        tracking["candidate_frames"] = 0
+        return stable
+
+    if tracking["candidate"] == normalized:
+        tracking["candidate_frames"] += 1
+    else:
+        tracking["candidate"] = normalized
+        tracking["candidate_frames"] = 1
+
+    if tracking["candidate_frames"] >= _AUTOMATION_CONFIRM_FRAMES:
+        tracking["stable"] = normalized
+        tracking["candidate"] = None
+        tracking["candidate_frames"] = 0
+        return normalized
+
+    return stable if stable is not None else normalized if tracking["candidate_frames"] >= 2 else {}
+
 
 def get_device_quadrant(device):
     """
@@ -114,7 +171,7 @@ def get_device_quadrant(device):
     4: Bottom-Right (Relay 4 / GPIO 19)
     """
     if device.relay in [1, 2, 3, 4]:
-        return device.relay
+        return zone_for_relay(device.relay)
     for z in device.zones.all():
         for q in [1, 2, 3, 4]:
             if f"quadrant {q}" in z.name.lower() or f"q{q}" in z.name.lower():
@@ -146,7 +203,6 @@ def _device_payload(device):
     quadrant_num = get_device_quadrant(device)
     quadrant_label = f"Quadrant {quadrant_num}"
     quadrant_pos = QUADRANT_POSITIONS.get(quadrant_num, "Top-Left")
-    pin = None if device.category == "ac" else QUADRANT_PINS.get(quadrant_num, 16)
 
     # Determine rated wattage (lights: 24W, fans: 65W, ac: 1450W, other: 40W)
     default_watts = 1450 if device.category == "ac" else 65 if device.category == "fans" else 24
@@ -162,6 +218,7 @@ def _device_payload(device):
         quadrants = [quadrant_num]
         relay_val = device.relay if device.relay in [1, 2, 3, 4] else quadrant_num
         automation_note = f"Quadrant {quadrant_num} ({quadrant_pos}) Presence • Relay {relay_val}"
+    pin = None if device.category == "ac" else QUADRANT_PINS.get(relay_val, 16)
 
     return {
         "id": device.device_id,
@@ -223,15 +280,12 @@ def _section_payload(section):
             z_occ = sum(1 for b in boxes if _inside(((b["x1"] + b["x2"]) / 2, (b["y1"] + b["y2"]) / 2), pts))
             z_num = lz.get("num", 1)
 
-            # Auto-assign devices matching this zone/quadrant/relay or room-wide climate (AC)
-            assigned = list(lz.get("assignedDeviceIds") or [])
-            for d in section_devices:
-                dev_id = d.device_id
-                if dev_id in assigned:
-                    continue
-                d_q = get_device_quadrant(d)
-                if d_q == z_num or d.relay == z_num or d.category == "ac":
-                    assigned.append(dev_id)
+            # A non-AC device belongs to exactly one camera zone. AC is
+            # room-wide and is intentionally shown in every zone.
+            assigned = [
+                d.device_id for d in section_devices
+                if d.category == "ac" or get_device_quadrant(d) == z_num
+            ]
 
             zones_payload.append({
                 "id": str(lz.get("id", lz.get("num", 1))),
@@ -242,6 +296,8 @@ def _section_payload(section):
                 "occupantCount": z_occ,
                 "color": lz.get("color", "#FFB547"),
                 "shapeType": "polygon",
+                "relay": relay_for_zone(z_num),
+                "pin": QUADRANT_PINS[relay_for_zone(z_num)],
                 "points": " ".join(f"{p[0] * 400:g},{p[1] * 320:g}" for p in pts),
                 "handles": handles,
                 "assignedDeviceIds": assigned,
@@ -451,8 +507,17 @@ def control_device_relay(request):
         # Forward directly to ESP32
         res = _esp32_request(f"/api/relay?id={relay_num}&state={state_int}")
         return _response({"status": "ok", "relay": relay_num, "state": state_int, "esp32": res})
+    except ConnectionError as exc:
+        logger.error("ESP32 relay %s command failed: %s", relay, exc)
+        return _response({
+            "status": "error",
+            "relay": relay,
+            "state": state_val,
+            "error": str(exc),
+        }, 503)
     except Exception as exc:
-        return _response({"status": "simulated", "relay": relay, "state": state_val, "error": str(exc)})
+        logger.exception("Unexpected relay control failure")
+        return _response({"error": str(exc)}, 500)
 
 
 @csrf_exempt
@@ -477,7 +542,24 @@ def esp32_ip_api(request):
             pass
     active = get_active_esp32_url()
     clean_ip = active.replace("http://", "").replace("https://", "").split(":")[0]
-    return _response({"status": "ok", "url": active, "ip": clean_ip})
+    try:
+        esp_status = _esp32_request("/api/status")
+        reported_ip = esp_status.get("ip") if isinstance(esp_status, dict) else None
+        return _response({
+            "status": "ok",
+            "connected": True,
+            "url": get_active_esp32_url(),
+            "ip": reported_ip or clean_ip,
+            "esp32": esp_status,
+        })
+    except ConnectionError as exc:
+        return _response({
+            "status": "unreachable",
+            "connected": False,
+            "url": active,
+            "ip": clean_ip,
+            "error": str(exc),
+        })
 
 
 
@@ -561,10 +643,7 @@ def devices_api(request):
                     except Exception:
                         pass
             else:
-                relay = data.get("relay")
-                if relay is None or str(relay).strip() == "":
-                    relay = quadrant_num  # default relay to quadrant number (1, 2, 3, or 4)
-                relay = int(relay) if str(relay).isdigit() else quadrant_num
+                relay = relay_for_zone(quadrant_num)
 
             default_watts = 44.0 if category == "lights" else (38.0 if category == "fans" else 1450.0)
             power_watts = float(data.get("power_watts") or default_watts)
@@ -669,11 +748,11 @@ def device_detail(request, device_id):
                     except Exception:
                         pass
             else:
-                quadrant_raw = data.get("quadrant") or data.get("quadrantNum") or data.get("relay")
+                quadrant_raw = data.get("quadrant") or data.get("quadrantNum")
                 if quadrant_raw is not None and str(quadrant_raw).isdigit():
                     q_num = int(quadrant_raw)
                     if q_num in [1, 2, 3, 4]:
-                        device.relay = q_num
+                        device.relay = relay_for_zone(q_num)
                         quadrant_name = f"Quadrant {q_num}"
                         zone = Zone.objects.filter(section=device.section, name__icontains=quadrant_name).first()
                         if zone:
@@ -912,10 +991,11 @@ def _apply_automation(section_id, boxes):
                 logger.debug("ESP32 AC power command failed: %s", exc)
 
     if zones:
-        relay_states = {}
+        raw_relay_states = {}
         for z in zones:
             pts = z.get("points", [])
-            relay = int(z.get("relay") or z.get("num") or 1)
+            z_num = int(z.get("num") or 1)
+            relay = relay_for_zone(z_num)
             z_occupied = False
             for b in boxes:
                 cx = float(b.get("cx") if b.get("cx") is not None else (float(b.get("x1", 0)) + float(b.get("x2", 0))) / 2.0)
@@ -926,16 +1006,20 @@ def _apply_automation(section_id, boxes):
                     z_occupied = True
                     break
             # If multiple zones share a relay, keep ON if any zone is occupied
-            relay_states[relay] = relay_states.get(relay, False) or z_occupied
+            raw_relay_states[relay] = raw_relay_states.get(relay, False) or z_occupied
 
-            # Update devices assigned to this zone/relay (non-AC devices)
-            z_num = int(z.get("num") or relay)
+        relay_states = _stable_relay_states(section_id, raw_relay_states, any_person_in_room)
+        # Update devices only from the confirmed location, not from a single
+        # noisy frame near a zone boundary.
+        for z in zones:
+            z_num = int(z.get("num") or 1)
+            relay = relay_for_zone(z_num)
             matching_devs = [
                 d for d in all_devices
-                if d.category != "ac" and ((d.relay == relay) or (get_device_quadrant(d) == z_num) or (getattr(d, "quadrantNum", None) == z_num))
+                if d.category != "ac" and get_device_quadrant(d) == z_num
             ]
             for dev in matching_devs:
-                new_on = bool(z_occupied)
+                new_on = bool(relay_states.get(relay, False))
                 new_speed = (2 if dev.category == "fans" else 0) if new_on else 0
                 if dev.is_on != new_on or dev.speed != new_speed or dev.manual_override:
                     dev.is_on = new_on
@@ -943,16 +1027,21 @@ def _apply_automation(section_id, boxes):
                     dev.manual_override = False
                     dev.save(update_fields=["is_on", "speed", "manual_override"])
 
-        # Send command to ESP32 for each configured relay
+        previous_relay_states = _automation_tracking[section_id].get("sent", {})
+        # Send only changed commands; repeating the same command every camera
+        # frame is what causes visible relay chatter on a small presentation.
         for r_id, is_on in relay_states.items():
             r_state = 1 if is_on else 0
+            if previous_relay_states.get(r_id) == is_on:
+                continue
             state_icon = "🟢 [ON]" if r_state else "🔴 [OFF]"
             try:
                 res = _esp32_request(f"/api/relay?id={r_id}&state={r_state}")
                 if res.get("status") != "unconfigured":
                     print(f"{state_icon} [AUTOMATION] Zone Relay {r_id} -> {state_icon} (Occupied: {is_on})")
+                _automation_tracking[section_id].setdefault("sent", {})[r_id] = is_on
             except Exception as exc:
-                logger.debug("ESP32 relay %d command failed: %s", r_id, exc)
+                logger.warning("ESP32 relay %d command failed: %s", r_id, exc)
 
         return relay_states
 
@@ -970,26 +1059,38 @@ def _apply_automation(section_id, boxes):
         else:
             quadrant_occupied[4] = True
 
+    raw_relay_states = {
+        relay_for_zone(q): quadrant_occupied[q] for q in [1, 2, 3, 4]
+    }
+    relay_states = _stable_relay_states(section_id, raw_relay_states, any_person_in_room)
+
     for q in [1, 2, 3, 4]:
-        is_occupied = quadrant_occupied[q]
+        relay = relay_for_zone(q)
+        is_occupied = relay_states.get(relay, False)
         q_devices = [d for d in all_devices if d.category != "ac" and get_device_quadrant(d) == q]
         for dev in q_devices:
             new_is_on = bool(is_occupied)
             new_speed = (2 if dev.category == "fans" else 0) if new_is_on else 0
-            if dev.is_on != new_is_on or dev.speed != new_speed or dev.relay != q or dev.manual_override:
+            relay = relay_for_zone(q)
+            if dev.is_on != new_is_on or dev.speed != new_speed or dev.relay != relay or dev.manual_override:
                 dev.is_on = new_is_on
                 dev.speed = new_speed
-                dev.relay = q
+                dev.relay = relay
                 dev.manual_override = False
                 dev.save(update_fields=["is_on", "speed", "relay", "manual_override"])
 
-        relay_state = 1 if is_occupied else 0
-        try:
-            _esp32_request(f"/api/relay?id={q}&state={relay_state}")
-        except Exception:
-            pass
+        previous_relay_states = _automation_tracking[section_id].get("sent", {})
+        if previous_relay_states.get(relay) != is_occupied:
+            try:
+                _esp32_request(f"/api/relay?id={relay}&state={1 if is_occupied else 0}")
+                _automation_tracking[section_id].setdefault("sent", {})[relay] = is_occupied
+            except Exception as exc:
+                logger.warning("ESP32 relay %d command failed: %s", relay, exc)
 
-    return quadrant_occupied
+    return {
+        q: bool(relay_states.get(relay_for_zone(q), False))
+        for q in [1, 2, 3, 4]
+    }
 
 
 def process_image_and_record(image, section_id=1):
@@ -1639,7 +1740,7 @@ def _get_active_layout():
     active_id = _get_active_layout_id()
     layout = RoomLayout.objects.filter(layout_id=active_id).first() or RoomLayout.objects.first()
     if layout:
-        return layout.to_dict()
+        return _normalize_layout(layout.to_dict())
     layouts = _load_layouts()
     return layouts[0] if layouts else None
 
@@ -1668,7 +1769,19 @@ def _load_layouts():
                 first_l.save(update_fields=["is_active"])
         layouts_qs = RoomLayout.objects.all().order_by("id")
 
-    return [l.to_dict() for l in layouts_qs]
+    return [_normalize_layout(l.to_dict()) for l in layouts_qs]
+
+
+def _normalize_layout(layout):
+    """Apply the installed zone-to-relay wiring to persisted layouts."""
+    zones = []
+    for zone in layout.get("zones") or []:
+        normalized = dict(zone)
+        zone_num = int(zone.get("num") or zone.get("id") or 1)
+        normalized["relay"] = relay_for_zone(zone_num)
+        normalized["pin"] = QUADRANT_PINS[normalized["relay"]]
+        zones.append(normalized)
+    return {**layout, "zones": zones}
 
 
 def _save_layouts():
@@ -2166,4 +2279,3 @@ def ai_automap(request):
 @csrf_exempt
 def weather_api(request):
     return sensor_data(request)
-

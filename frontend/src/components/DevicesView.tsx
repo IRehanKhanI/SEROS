@@ -17,9 +17,9 @@ import { UniversalAcRemote, AC_VENDOR_PROTOCOLS } from './UniversalAcRemote';
 import { serosApi } from '../api/serosApi';
 
 const QUADRANTS = [
-  { id: '1', num: 1, name: 'Quadrant 1', position: 'Top-Left', relay: 1 },
+  { id: '1', num: 1, name: 'Quadrant 1', position: 'Top-Left', relay: 3 },
   { id: '2', num: 2, name: 'Quadrant 2', position: 'Top-Right', relay: 2 },
-  { id: '3', num: 3, name: 'Quadrant 3', position: 'Bottom-Left', relay: 3 },
+  { id: '3', num: 3, name: 'Quadrant 3', position: 'Bottom-Left', relay: 1 },
   { id: '4', num: 4, name: 'Quadrant 4', position: 'Bottom-Right', relay: 4 },
 ];
 

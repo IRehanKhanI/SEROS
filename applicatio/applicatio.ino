@@ -10,9 +10,9 @@
  * 6. Full REST API with CORS for Django Backend, React Web UI & React Native Mobile App
  *
  * Hardware Wiring:
- * - Quadrant 1 -> Relay 1 -> GPIO 16 (Active LOW)
+ * - Zone 1 -> Relay 3 -> GPIO 18
  * - Quadrant 2 -> Relay 2 -> GPIO 17 (Active LOW)
- * - Quadrant 3 -> Relay 3 -> GPIO 18 (Active LOW)
+ * - Zone 3 -> Relay 1 -> GPIO 16
  * - Quadrant 4 -> Relay 4 -> GPIO 19 (Active LOW)
  * - HTU21DF Temp/Humidity Sensor -> I2C (SDA=GPIO 21, SCL=GPIO 22)
  * - IR Receiver (VS1838B / KY-022) -> GPIO 14 (+ to 3.3V, - to GND)
@@ -35,8 +35,11 @@ const char* WIFI_SSID   = "RehanLP"; // Matches Windows Laptop Mobile Hotspot
 const char* WIFI_PASS   = "12345678";
 const char* DEVICE_NAME = "SEROS-ESP32";
 
-// Relay Hardware Mapping (Relay 1-4 for Quadrants 1-4)
+// Relay channels are physical outputs. The camera-zone mapping is:
+// Zone 1 -> Relay 3/GPIO18, Zone 2 -> Relay 2/GPIO17,
+// Zone 3 -> Relay 1/GPIO16, Zone 4 -> Relay 4/GPIO19.
 const uint16_t relayPins[4] = {16, 17, 18, 19};
+const uint8_t relayZones[4] = {3, 2, 1, 4};
 const bool ACTIVE_LOW       = false;
 
 // IR Hardware Pins
@@ -118,8 +121,8 @@ void setRelay(uint8_t index, bool on) {
   if (index >= 4) return;
   relays[index] = on;
   digitalWrite(relayPins[index], on == ACTIVE_LOW ? LOW : HIGH);
-  Serial.printf("[SEROS] %s Quadrant %d / Relay %d (Pin %d) -> %s\n",
-                on ? "[ON]" : "[OFF]", index + 1, index + 1, relayPins[index], on ? "ON" : "OFF");
+  Serial.printf("[SEROS] %s Zone %d / Relay %d (Pin %d) -> %s\n",
+                on ? "[ON]" : "[OFF]", relayZones[index], index + 1, relayPins[index], on ? "ON" : "OFF");
 }
 
 void setAllRelays(bool on) {
@@ -1004,6 +1007,8 @@ void setup() {
 
   // Connect to Wi-Fi with Static IP configuration
   WiFi.mode(WIFI_STA);
+  WiFi.setAutoReconnect(true);
+  WiFi.persistent(false);
 
   IPAddress local_IP(192, 168, 137, 97);
   IPAddress gateway(192, 168, 137, 1);
@@ -1122,7 +1127,8 @@ void loop() {
     if (millis() - lastWifiCheck > 10000) {
       lastWifiCheck = millis();
       Serial.println("[SEROS] Wi-Fi lost. Attempting reconnection...");
-      WiFi.reconnect();
+      WiFi.disconnect(false);
+      WiFi.begin(WIFI_SSID, WIFI_PASS);
     }
   }
 

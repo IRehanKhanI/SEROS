@@ -792,18 +792,26 @@ export const RoomsView: React.FC = () => {
 
   const handleToggleDeviceAssignment = (zoneId: string, deviceId: string) => {
     pushUndo(zones);
-    setZones(prev =>
-      prev.map(z => {
-        if (z.id === zoneId) {
-          const exists = z.assignedDeviceIds?.includes(deviceId);
-          const nextAssigned = exists
+    const device = devices.find(d => d.id === deviceId);
+    const isRoomWide = device?.category === 'ac';
+    setZones(prev => prev.map(z => {
+      if (z.id === zoneId) {
+        const exists = z.assignedDeviceIds?.includes(deviceId);
+        return {
+          ...z,
+          assignedDeviceIds: exists
             ? z.assignedDeviceIds.filter(id => id !== deviceId)
-            : [...(z.assignedDeviceIds || []), deviceId];
-          return { ...z, assignedDeviceIds: nextAssigned };
-        }
-        return z;
-      })
-    );
+            : [...(z.assignedDeviceIds || []), deviceId],
+        };
+      }
+      if (!isRoomWide && z.assignedDeviceIds?.includes(deviceId)) {
+        return {
+          ...z,
+          assignedDeviceIds: z.assignedDeviceIds.filter(id => id !== deviceId),
+        };
+      }
+      return z;
+    }));
     setBackendVerifiedNotice('Hardware fixture assignments updated.');
   };
 
@@ -1616,16 +1624,13 @@ export const RoomsView: React.FC = () => {
       {zones.map((zone, idx) => {
         const zNum = zone.num ?? (typeof zone.id === 'number' ? zone.id : parseInt(String(zone.id).replace(/\D/g, ''), 10) || (idx + 1));
         const zoneDevs = devices.filter(d => {
-          if (zone.assignedDeviceIds && zone.assignedDeviceIds.includes(d.id)) return true;
-          if (d.quadrantNum === zNum) return true;
-          if (Array.isArray(d.quadrants) && d.quadrants.includes(zNum)) return true;
-          if (d.relay === zNum) return true;
-          if (d.zoneId && (d.zoneId === String(zone.id) || d.zoneId === String(zNum))) return true;
           if (d.category === 'ac') return true;
-          const nameL = (zone.name || '').toLowerCase();
-          if (d.quadrantNum && (nameL.includes(`zone ${d.quadrantNum}`) || nameL.includes(`quadrant ${d.quadrantNum}`))) return true;
-          if (d.relay && (nameL.includes(`zone ${d.relay}`) || nameL.includes(`relay ${d.relay}`))) return true;
-          return false;
+          // Backend assignment is authoritative. The quadrant fallback is
+          // only for older records that do not yet have zone assignments.
+          if (Array.isArray(zone.assignedDeviceIds) && zone.assignedDeviceIds.length > 0) {
+            return zone.assignedDeviceIds.includes(d.id);
+          }
+          return d.quadrantNum === zNum;
         });
         const occ = getZoneDisplayOccupancy(zone);
         return (

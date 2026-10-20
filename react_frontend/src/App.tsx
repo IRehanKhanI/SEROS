@@ -67,7 +67,9 @@ export interface SensorData {
   esp32_connected: boolean;
 }
 
-const API = (import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000').replace(/\/+$/, '');
+// Keep the web client on the same LAN backend as the mobile app by default.
+// VITE_API_URL can still override this for deployment or local development.
+const API = (import.meta.env.VITE_API_URL || 'http://10.1.11.21:8000').replace(/\/+$/, '');
 
 export const RELAY_PINS: Record<number, number> = {
   1: 16,
@@ -104,7 +106,7 @@ const DEFAULT_ROOM_LAYOUTS: RoomLayout[] = [
     isDefault: true,
     zones: [
       {
-        id: '1', num: 1, name: 'Zone 1 (Front-Left)', color: '#00D2FF', relay: 1, pin: 16,
+        id: '1', num: 1, name: 'Zone 1 (Front-Left)', color: '#00D2FF', relay: 3, pin: 18,
         points: [[0.0, 0.0], [0.5, 0.0], [0.5, 0.5], [0.0, 0.5]],
         volumetric: {
           top: [[0.0, 0.0], [0.5, 0.0], [0.5, 0.25], [0.0, 0.25]],
@@ -122,7 +124,7 @@ const DEFAULT_ROOM_LAYOUTS: RoomLayout[] = [
         }
       },
       {
-        id: '3', num: 3, name: 'Zone 3 (Back-Left)', color: '#10B981', relay: 3, pin: 18,
+        id: '3', num: 3, name: 'Zone 3 (Back-Left)', color: '#10B981', relay: 1, pin: 16,
         points: [[0.0, 0.5], [0.5, 0.5], [0.5, 1.0], [0.0, 1.0]],
         volumetric: {
           top: [[0.0, 0.25], [0.5, 0.25], [0.5, 0.65], [0.0, 0.65]],
@@ -201,11 +203,11 @@ export default function App() {
 
   // Devices & Layouts State
   const [devices, setDevices] = useState<Device[]>([
-    { id: '1', name: 'Zone 1 Front Light', category: 'lights', status: 'ON', quadrantNum: 1, quadrants: [1], relay: 1, powerWatts: 24 },
+    { id: '1', name: 'Zone 1 Front Light', category: 'lights', status: 'ON', quadrantNum: 1, quadrants: [1], relay: 3, powerWatts: 24 },
     { id: '2', name: 'Zone 2 Front Light', category: 'lights', status: 'ON', quadrantNum: 2, quadrants: [2], relay: 2, powerWatts: 24 },
-    { id: '3', name: 'Zone 3 Rear Light', category: 'lights', status: 'ON', quadrantNum: 3, quadrants: [3], relay: 3, powerWatts: 24 },
+    { id: '3', name: 'Zone 3 Rear Light', category: 'lights', status: 'ON', quadrantNum: 3, quadrants: [3], relay: 1, powerWatts: 24 },
     { id: '4', name: 'Zone 4 Rear Light', category: 'lights', status: 'OFF', quadrantNum: 4, quadrants: [4], relay: 4, powerWatts: 24 },
-    { id: '5', name: 'Zone 1 Ceiling Fan', category: 'fans', status: 'ON', quadrantNum: 1, quadrants: [1], relay: 1, powerWatts: 65 },
+    { id: '5', name: 'Zone 1 Ceiling Fan', category: 'fans', status: 'ON', quadrantNum: 1, quadrants: [1], relay: 3, powerWatts: 65 },
     { id: '6', name: 'Zone 2 Ceiling Fan', category: 'fans', status: 'OFF', quadrantNum: 2, quadrants: [2], relay: 2, powerWatts: 65 },
     { id: '7', name: 'Master Room AC Unit', category: 'ac', status: 'ON', quadrantNum: 1, quadrants: [1, 2, 3, 4], relay: 1, powerWatts: 1450 },
   ]);
@@ -340,6 +342,13 @@ export default function App() {
   const [addDeviceAcFan, setAddDeviceAcFan] = useState<string>('auto');
   const [isSubmittingDevice, setIsSubmittingDevice] = useState(false);
   const [addSuccessNotice, setAddSuccessNotice] = useState<string | null>(null);
+  const [editingDevice, setEditingDevice] = useState<Device | null>(null);
+  const [editDeviceName, setEditDeviceName] = useState('');
+  const [editDeviceCategory, setEditDeviceCategory] = useState<'lights' | 'fans' | 'ac'>('lights');
+  const [editDeviceZone, setEditDeviceZone] = useState(1);
+  const [editDevicePower, setEditDevicePower] = useState(24);
+  const [isSavingDevice, setIsSavingDevice] = useState(false);
+  const [editDeviceNotice, setEditDeviceNotice] = useState<string | null>(null);
 
   // New Layout Modal State
   const [isNewLayoutModalOpen, setIsNewLayoutModalOpen] = useState(false);
@@ -397,7 +406,9 @@ export default function App() {
       if (stateRes.ok) {
         const stateData = await stateRes.json();
         setConnected(true);
-        if (stateData.devices && stateData.devices.length > 0) {
+        if (Array.isArray(stateData.devices)) {
+          // The backend is authoritative so additions/deletions made in either
+          // client are reflected here, including an intentionally empty list.
           setDevices(stateData.devices);
         }
         // Bidirectional camera synchronization (mobile app turns on/off laptop camera)
@@ -1346,19 +1357,53 @@ export default function App() {
     }
   };
 
+  const openDeviceEditor = (device: Device) => {
+    setEditingDevice(device);
+    setEditDeviceName(device.name);
+    setEditDeviceCategory(device.category === 'other' ? 'lights' : device.category);
+    setEditDeviceZone(device.quadrantNum || device.relay || 1);
+    setEditDevicePower(device.powerWatts || (device.category === 'ac' ? 1450 : device.category === 'fans' ? 65 : 24));
+    setEditDeviceNotice(null);
+  };
+
+  const handleSaveDevice = async () => {
+    if (!editingDevice || !editDeviceName.trim()) return;
+    setIsSavingDevice(true);
+    setEditDeviceNotice(null);
+    try {
+      const res = await fetch(`${API}/api/devices/${encodeURIComponent(editingDevice.id)}/`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: editDeviceName.trim(),
+          category: editDeviceCategory,
+          quadrant: editDeviceZone,
+          power_watts: editDevicePower,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      setEditingDevice(null);
+      await loadAllData();
+    } catch (err) {
+      setEditDeviceNotice(err instanceof Error ? err.message : 'Unable to save device.');
+    } finally {
+      setIsSavingDevice(false);
+    }
+  };
+
   // Toggle zone devices
   const handleToggleZone = async (zone: Zone) => {
     setTogglingZoneId(zone.id);
     const zoneDevices = devices.filter(d => 
       (d.quadrantNum === zone.num) ||
-      (d.quadrants && d.quadrants.includes(zone.num)) ||
-      (d.relay === zone.relay)
+      (d.quadrants && d.quadrants.includes(zone.num))
     );
     const anyOn = zoneDevices.some(d => d.status === 'ON');
     const targetState = !anyOn;
 
     setDevices(prev => prev.map(d => {
-      const matches = (d.quadrantNum === zone.num) || (d.quadrants && d.quadrants.includes(zone.num)) || (d.relay === zone.relay);
+      const matches = (d.quadrantNum === zone.num) || (d.quadrants && d.quadrants.includes(zone.num));
       return matches ? { ...d, status: targetState ? 'ON' : 'OFF' } : d;
     }));
 
@@ -1397,19 +1442,6 @@ export default function App() {
     setAddSuccessNotice(null);
 
     const isAc = addDeviceType === 'ac';
-    const newDev: Device = {
-      id: `dev-${Date.now()}`,
-      name: addDeviceName.trim(),
-      category: addDeviceType,
-      status: 'ON',
-      quadrantNum: addDeviceZoneNum,
-      quadrants: isAc ? [1, 2, 3, 4] : [addDeviceZoneNum],
-      relay: isAc ? undefined : addDeviceZoneNum,
-      powerWatts: isAc ? 1450 : addDeviceType === 'fans' ? 65 : 24,
-    };
-
-    setDevices(prev => [...prev, newDev]);
-
     try {
       const res = await fetch(`${API}/api/devices/`, {
         method: 'POST',
@@ -1437,10 +1469,13 @@ export default function App() {
         setAddSuccessNotice(`Successfully added "${addDeviceName.trim()}" ${isAc ? `(Brand: ${addDeviceAcProtocol} • ${addDeviceAcTemp}°C • IR Remote • No Relay)` : `to Zone ${addDeviceZoneNum}`}`);
         setAddDeviceName(isAc ? 'Universal AC Remote' : `Zone ${addDeviceZoneNum} ${addDeviceType === 'lights' ? 'Light' : 'Fan'}`);
         await loadAllData();
+      } else {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP ${res.status}`);
       }
     } catch (err) {
       console.error(err);
-      setAddSuccessNotice(`Added "${addDeviceName.trim()}" locally (offline mode)`);
+      setAddSuccessNotice(`Could not add "${addDeviceName.trim()}": ${err instanceof Error ? err.message : 'backend unavailable'}`);
     } finally {
       setIsSubmittingDevice(false);
       setTimeout(() => setAddSuccessNotice(null), 4000);
@@ -2073,8 +2108,7 @@ Turning off ACs 15 mins before leaving saves approximately ~₹320/month without
                       
                       const zoneDevices = devices.filter(d => 
                         (d.quadrantNum === zone.num) ||
-                        (d.quadrants && d.quadrants.includes(zone.num)) ||
-                        (d.relay === zone.relay)
+                        (d.quadrants && d.quadrants.includes(zone.num))
                       );
                       const anyDeviceOn = zoneDevices.some(d => d.status === 'ON');
 
@@ -4121,6 +4155,14 @@ Turning off ACs 15 mins before leaving saves approximately ~₹320/month without
                       >
                         {dev.status}
                       </button>
+                      <button
+                        type="button"
+                        className="btn-modal-cancel"
+                        onClick={() => openDeviceEditor(dev)}
+                        style={{ padding: '6px 10px', fontSize: 12 }}
+                      >
+                        Edit
+                      </button>
                     </div>
 
                     <div className="device-card-body">
@@ -4144,6 +4186,80 @@ Turning off ACs 15 mins before leaving saves approximately ~₹320/month without
         )}
 
       </div>
+
+      {editingDevice && (
+        <div className="modal-backdrop-overlay">
+          <div className="modal-dialog-box">
+            <div className="modal-dialog-header">
+              <h3>Edit Device</h3>
+              <button type="button" className="btn-modal-close" onClick={() => setEditingDevice(null)}>
+                <Icon name="close" size={20} color="#4B5563" />
+              </button>
+            </div>
+            <div className="modal-dialog-body">
+              <div className="form-group">
+                <label className="form-label">DEVICE NAME</label>
+                <input
+                  type="text"
+                  value={editDeviceName}
+                  onChange={e => setEditDeviceName(e.target.value)}
+                  className="form-text-input"
+                  autoFocus
+                />
+              </div>
+              <div className="form-row-2">
+                <div className="form-group">
+                  <label className="form-label">TYPE</label>
+                  <select
+                    value={editDeviceCategory}
+                    onChange={e => setEditDeviceCategory(e.target.value as 'lights' | 'fans' | 'ac')}
+                    className="form-select-input"
+                  >
+                    <option value="lights">Lights</option>
+                    <option value="fans">Fans</option>
+                    <option value="ac">AC</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">ZONE</label>
+                  <select
+                    value={editDeviceZone}
+                    onChange={e => setEditDeviceZone(Number(e.target.value))}
+                    className="form-select-input"
+                    disabled={editDeviceCategory === 'ac'}
+                  >
+                    {[1, 2, 3, 4].map(zone => <option key={zone} value={zone}>Zone {zone}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="form-group">
+                <label className="form-label">POWER (WATTS)</label>
+                <input
+                  type="number"
+                  min={0}
+                  value={editDevicePower}
+                  onChange={e => setEditDevicePower(Math.max(0, Number(e.target.value)))}
+                  className="form-text-input"
+                />
+              </div>
+              {editDeviceNotice && <p style={{ color: '#B42318', margin: '8px 0 0' }}>{editDeviceNotice}</p>}
+            </div>
+            <div className="modal-dialog-footer">
+              <button type="button" className="btn-modal-cancel" onClick={() => setEditingDevice(null)}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn-modal-primary"
+                onClick={() => void handleSaveDevice()}
+                disabled={isSavingDevice || !editDeviceName.trim()}
+              >
+                {isSavingDevice ? 'Saving...' : 'Save Device'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 3. MODAL: CREATE NEW LAYOUT */}
       {isNewLayoutModalOpen && (
