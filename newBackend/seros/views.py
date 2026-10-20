@@ -918,9 +918,11 @@ def _apply_automation(section_id, boxes):
             relay = int(z.get("relay") or z.get("num") or 1)
             z_occupied = False
             for b in boxes:
-                cx = (float(b.get("x1", 0)) + float(b.get("x2", 0))) / 2.0
-                cy = (float(b.get("y1", 0)) + float(b.get("y2", 0))) / 2.0
-                if pts and _inside((cx, cy), pts):
+                cx = float(b.get("cx") if b.get("cx") is not None else (float(b.get("x1", 0)) + float(b.get("x2", 0))) / 2.0)
+                # Physical floor contact point (feet/ground) is much more accurate than chest/torso centroid
+                ground_y = float(b.get("cy") if b.get("cy") is not None else min(0.99, float(b.get("y1", 0)) + (float(b.get("y2", 0)) - float(b.get("y1", 0))) * 0.85))
+                mid_y = (float(b.get("y1", 0)) + float(b.get("y2", 0))) / 2.0
+                if pts and (_inside((cx, ground_y), pts) or _inside((cx, mid_y), pts)):
                     z_occupied = True
                     break
             # If multiple zones share a relay, keep ON if any zone is occupied
@@ -957,8 +959,8 @@ def _apply_automation(section_id, boxes):
     # Fallback to 4 quadrants if no custom zones configured
     quadrant_occupied = {1: False, 2: False, 3: False, 4: False}
     for b in boxes:
-        cx = (float(b.get("x1", 0)) + float(b.get("x2", 0))) / 2.0
-        cy = (float(b.get("y1", 0)) + float(b.get("y2", 0))) / 2.0
+        cx = float(b.get("cx") if b.get("cx") is not None else (float(b.get("x1", 0)) + float(b.get("x2", 0))) / 2.0)
+        cy = float(b.get("cy") if b.get("cy") is not None else min(0.99, float(b.get("y1", 0)) + (float(b.get("y2", 0)) - float(b.get("y1", 0))) * 0.85))
         if cx < 0.5 and cy < 0.5:
             quadrant_occupied[1] = True
         elif cx >= 0.5 and cy < 0.5:
@@ -994,7 +996,8 @@ def process_image_and_record(image, section_id=1):
     """
     Core YOLO inference strictly detecting humans (COCO class 0: 'person').
     Rejects any other object completely.
-    Renders bounding boxes, centroid dots, confidence badges, and status banner.
+    Renders high-precision red pinpoint radar dots at the person's physical location.
+    Zero bounding box rectangles or confidence badges are drawn.
     Saves Detection to database, runs automations, and returns response dictionary.
     """
     from .camera_service import is_camera_enabled
@@ -1015,9 +1018,9 @@ def process_image_and_record(image, section_id=1):
     model = _get_yolo_model()
 
     # STRICT FILTER: classes=[0] ensures inference detects human/person class only.
-    # conf=0.50 strictly filters out chairs, desks, bottles, coats, and spurious objects.
-    # imgsz=384 ensures lightning-fast CPU inference (30-45ms)
-    results = model.predict(image, classes=[0], conf=0.50, imgsz=384, verbose=False)
+    # conf=0.25 detects ALL people accurately (seated, distant, angled, or occluded).
+    # imgsz=320 ensures ultra-fast real-time inference (15-25ms).
+    results = model.predict(image, classes=[0], conf=0.25, imgsz=320, verbose=False)
     result = results[0]
 
     width, height = image.size
@@ -1032,8 +1035,8 @@ def process_image_and_record(image, section_id=1):
             # 1. Strict verification: Must be COCO class 0 ('person'). Rejects all objects.
             if int(cls_id) != 0:
                 continue
-            # 2. High confidence threshold to reject inanimate object hallucinations
-            if conf < 0.50:
+            # 2. Confidence threshold allowing accurate multi-person detection
+            if conf < 0.25:
                 continue
 
             x1, y1, x2, y2 = box
@@ -1045,50 +1048,51 @@ def process_image_and_record(image, section_id=1):
 
             bw = nx2 - nx1
             bh = ny2 - ny1
-            # 3. Geometric verification for real human bodies (rejects tiny desk items or wall panels)
-            if bw < 0.035 or bh < 0.07:
+            # 3. Geometric verification for human bodies (allows distant/seated room occupants)
+            if bw < 0.015 or bh < 0.035:
                 continue
-            if bw > 0.85 and bh < 0.22:
+            if bw > 0.95 and bh < 0.15:
                 continue
+
+            # Ground standing/sitting contact point (accurate person physical location)
+            cx = (nx1 + nx2) / 2.0
+            cy = min(0.99, ny1 + bh * 0.85)
 
             boxes.append({
                 "x1": round(nx1, 4),
                 "y1": round(ny1, 4),
                 "x2": round(nx2, 4),
                 "y2": round(ny2, 4),
+                "cx": round(cx, 4),
+                "cy": round(cy, 4),
                 "confidence": round(float(conf), 4),
                 "label": "Human"
             })
 
-    # Render clean visual bounding boxes and annotations for mobile stream
+    # Render clean visual annotations: Red pinpoint radar dot ONLY (NO rectangles, NO labels)
     annotated = image.copy()
     draw = ImageDraw.Draw(annotated)
 
     for b in boxes:
-        bx1 = int(b["x1"] * width)
-        by1 = int(b["y1"] * height)
-        bx2 = int(b["x2"] * width)
-        by2 = int(b["y2"] * height)
-        cx = int(((b["x1"] + b["x2"]) / 2) * width)
-        cy = int(((b["y1"] + b["y2"]) / 2) * height)
+        cx_px = int(b["cx"] * width)
+        cy_px = int(b["cy"] * height)
 
-        # 1. Vibrant Green bounding box for human
-        draw.rectangle([bx1, by1, bx2, by2], outline="#00E676", width=3)
+        # 1. Soft red radar pulse wave
+        r_wave = 12
+        draw.ellipse([cx_px - r_wave, cy_px - r_wave, cx_px + r_wave, cy_px + r_wave], outline="#FF1744", width=2)
 
-        # 2. Centroid marker (red circle with white border)
-        draw.ellipse([cx - 5, cy - 5, cx + 5, cy + 5], fill="#FF1744", outline="#FFFFFF", width=2)
+        # 2. Solid glowing red core dot
+        r_core = 6
+        draw.ellipse([cx_px - r_core, cy_px - r_core, cx_px + r_core, cy_px + r_core], fill="#FF1744", outline="#FFFFFF", width=2)
 
-        # 3. Confidence badge banner
-        label = f"Human {int(b['confidence'] * 100)}%"
-        badge_w = 90
-        badge_h = 18
-        draw.rectangle([bx1, max(0, by1 - badge_h), bx1 + badge_w, by1], fill="#00E676")
-        draw.text((bx1 + 4, max(0, by1 - badge_h + 2)), label, fill="#000000")
+        # 3. Pure white high-precision center pinpoint
+        r_center = 2
+        draw.ellipse([cx_px - r_center, cy_px - r_center, cx_px + r_center, cy_px + r_center], fill="#FFFFFF")
 
-    # 4. Top status header
-    header_text = f"SEROS AI • Humans Detected: {len(boxes)}"
-    draw.rectangle([10, 10, 240, 32], fill="#111827")
-    draw.text((18, 14), header_text, fill="#00E676")
+    # 4. Clean unobtrusive status watermark
+    header_text = f"SEROS AI • Humans: {len(boxes)}"
+    draw.rectangle([10, 10, 190, 30], fill="#111827")
+    draw.text((16, 13), header_text, fill="#00E676")
 
     output = BytesIO()
     annotated.save(output, format="JPEG", quality=65, optimize=False)

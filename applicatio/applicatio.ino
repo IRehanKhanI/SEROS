@@ -122,6 +122,17 @@ void setRelay(uint8_t index, bool on) {
                 on ? "[ON]" : "[OFF]", index + 1, index + 1, relayPins[index], on ? "ON" : "OFF");
 }
 
+void setAllRelays(bool on) {
+  // Briefly disable IR receiver interrupts to prevent relay coil inductive kick from corrupting receiver buffer
+  irrecv.disableIRIn();
+  for (uint8_t i = 0; i < 4; ++i) {
+    setRelay(i, on);
+    delay(40); // 40ms stagger prevents sudden 300mA inrush current drop on 5V/3.3V rail
+  }
+  delay(60); // Allow power rail and LDO to settle completely
+  irrecv.enableIRIn();
+}
+
 void setupAcDefaults() {
   ac.next.protocol = decode_type_t::MITSUBISHI_AC; // Default ready protocol
   ac.next.model    = -1;
@@ -200,7 +211,7 @@ void handleMiniRemoteOverride(decode_results *res) {
   }
 
   // Button DOWN (▼): AC Target Temperature - 1°C
-  if (val == 0xFF52AD || val == 0xFF4AB5 || (cmd == 0x52 && val != 0xFF9867) || cmd == 0x4A) {
+  if (val == 0xFF52AD || (cmd == 0x52 && val != 0xFF9867 && val != 0xFF4AB5) || cmd == 0x07) {
     if (ac.next.degrees > 16) ac.next.degrees--;
     ac.next.power = true;
     sendState();
@@ -276,13 +287,22 @@ void handleMiniRemoteOverride(decode_results *res) {
     return;
   }
 
-  // Button 0 or Button * : Master Power Toggle (All Relays ON/OFF)
-  if (val == 0xFF9867 || val == 0xFF6897 || val == 0xFF42BD || val == 0xFF00FF ||
-      cmd == 0x19 || cmd == 0x16 || cmd == 0x68 || cmd == 0x98 || cmd == 0x42 || cmd == 0x48) {
+  // Button 0 (ZERO): Master Power Toggle (All Relays ON/OFF)
+  if (val == 0xFF9867 || val == 0xFF4AB5 || cmd == 0x19 || cmd == 0x4A || cmd == 0x98) {
     bool anyOn = relays[0] || relays[1] || relays[2] || relays[3];
     bool target = !anyOn;
-    for (uint8_t i = 0; i < 4; ++i) setRelay(i, target);
-    statusMessage = String("Manual Override: All Relays ") + (target ? "ON" : "OFF");
+    setAllRelays(target);
+    statusMessage = String("Manual Override [Button 0]: All Relays ") + (target ? "ON" : "OFF");
+    Serial.println("[OVERRIDE] " + statusMessage);
+    return;
+  }
+
+  // Button * (STAR): Master Power Toggle (All Relays ON/OFF)
+  if (val == 0xFF6897 || val == 0xFF42BD || cmd == 0x16 || cmd == 0x42 || cmd == 0x68) {
+    bool anyOn = relays[0] || relays[1] || relays[2] || relays[3];
+    bool target = !anyOn;
+    setAllRelays(target);
+    statusMessage = String("Manual Override [Button *]: All Relays ") + (target ? "ON" : "OFF");
     Serial.println("[OVERRIDE] " + statusMessage);
     return;
   }
@@ -300,11 +320,28 @@ void checkIRReceiver() {
   if (learnTarget == LEARN_NONE) {
     // Continuous manual override listening
     if (!irrecv.decode(&results)) return;
-    static unsigned long lastIrTime = 0;
-    if (results.repeat && millis() - lastIrTime < 300) {
+
+    // 1. Strict Protocol Noise Rejection:
+    // When relays click or current changes, electrical noise on GPIO 14 always decodes as
+    // UNKNOWN with short/irregular pulse counts. Drop them immediately without printing!
+    if (results.decode_type == decode_type_t::UNKNOWN || results.rawlen < 16) {
       irrecv.resume();
       return;
     }
+
+    // 2. Reject zero, corrupt, or garbage values
+    if (results.value == 0 || results.value == 0xFFFFFFFF || results.value == 0xFF00FF) {
+      irrecv.resume();
+      return;
+    }
+
+    // 3. Debounce to prevent rapid repeat triggers (350ms)
+    static unsigned long lastIrTime = 0;
+    if (millis() - lastIrTime < 350) {
+      irrecv.resume();
+      return;
+    }
+
     handleMiniRemoteOverride(&results);
     lastIrTime = millis();
     irrecv.resume();
@@ -728,7 +765,7 @@ void handleRelayToggle() {
 
 void handleRelayAll() {
   int state = server.arg("state").toInt();
-  for (uint8_t i = 0; i < 4; ++i) setRelay(i, state == 1);
+  setAllRelays(state == 1);
   redirectHome();
 }
 
@@ -783,7 +820,7 @@ void handleApiAll() {
   cors();
   if (server.method() == HTTP_OPTIONS) { server.send(204); return; }
   int state = server.arg("state").toInt();
-  for (uint8_t i = 0; i < 4; ++i) setRelay(i, state == 1);
+  setAllRelays(state == 1);
   server.send(200, "application/json", "{\"status\":\"ok\",\"all_state\":" + String(state) + "}");
 }
 

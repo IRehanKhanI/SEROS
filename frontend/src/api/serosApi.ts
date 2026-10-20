@@ -91,7 +91,7 @@ export interface OccupancyDetectionResult {
   persons: PersonCoord[];
   img_shape?: string;
   error?: string;
-  boxes?: { x1: number; y1: number; x2: number; y2: number; confidence: number }[];
+  boxes?: { x1: number; y1: number; x2: number; y2: number; cx?: number; cy?: number; confidence: number }[];
   processed_frame?: string;
 }
 

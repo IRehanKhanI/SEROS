@@ -232,15 +232,21 @@ export const RoomsView: React.FC = () => {
                 const bStr = JSON.stringify(res.boxes);
                 if (bStr !== prevBoxesJsonRef.current) {
                   prevBoxesJsonRef.current = bStr;
-                  setDetectedPersons(res.boxes.map((box, index) => ({
-                    id: `person-${index}`,
-                    x: box.x1 * 400,
-                    y: box.y1 * 320,
-                    width: (box.x2 - box.x1) * 400,
-                    height: (box.y2 - box.y1) * 320,
-                    confidence: box.confidence,
-                    label: `Human ${Math.round(box.confidence * 100)}%`,
-                  })));
+                  setDetectedPersons(res.boxes.map((box, index) => {
+                    const bw = (box.x2 - box.x1) * 400;
+                    const bh = (box.y2 - box.y1) * 320;
+                    const px = (box.cx !== undefined ? box.cx : (box.x1 + box.x2) / 2) * 400;
+                    const py = (box.cy !== undefined ? box.cy : Math.min(0.99, box.y1 + (box.y2 - box.y1) * 0.85)) * 320;
+                    return {
+                      id: `person-${index}`,
+                      x: px,
+                      y: py,
+                      width: bw,
+                      height: bh,
+                      confidence: box.confidence,
+                      label: `Human ${Math.round(box.confidence * 100)}%`,
+                    };
+                  }));
                 }
               }
             }
@@ -398,8 +404,9 @@ export const RoomsView: React.FC = () => {
   const getZoneDisplayOccupancy = useCallback((zone: Zone) => {
     if (detectedPersons.length > 0) {
       const count = detectedPersons.filter(person => {
-        const center = { x: person.x, y: person.y };
-        return isPointInPolygon(center, zone.handles);
+        const ground = { x: person.x, y: person.y };
+        const mid = { x: person.x, y: Math.max(0, person.y - (person.height ? person.height * 0.35 : 0)) };
+        return isPointInPolygon(ground, zone.handles) || isPointInPolygon(mid, zone.handles);
       }).length;
       return {
         count,
@@ -1295,39 +1302,35 @@ export const RoomsView: React.FC = () => {
               </G>
             )}
 
-            {/* YOLO Person Bounding Boxes */}
+            {/* Detected Occupants: High-Precision Glowing Red Pinpoint Radar Dot Only (No Rectangles) */}
             {showPersonBoxes &&
               detectedPersons.map((person) => (
                 <G key={person.id}>
-                  <Rect
-                    x={person.x - person.width / 2}
-                    y={person.y - person.height / 2}
-                    width={person.width}
-                    height={person.height}
-                    rx="6"
-                    fill="#FFB547"
-                    fillOpacity={0.28}
+                  {/* Radar pulse wave circle */}
+                  <Circle
+                    cx={person.x}
+                    cy={person.y}
+                    r={14}
+                    fill="rgba(255, 23, 68, 0.22)"
+                    stroke="#FF1744"
+                    strokeWidth={2}
+                  />
+                  {/* Solid glowing red core */}
+                  <Circle
+                    cx={person.x}
+                    cy={person.y}
+                    r={7}
+                    fill="#FF1744"
                     stroke="#FFFFFF"
-                    strokeWidth="2"
+                    strokeWidth={1.5}
                   />
-                  <Rect
-                    x={person.x - person.width / 2}
-                    y={person.y - person.height / 2 - 18}
-                    width={person.width}
-                    height={18}
-                    rx="4"
-                    fill="#00210C"
-                  />
-                  <SvgText
-                    x={person.x - person.width / 2 + 4}
-                    y={person.y - person.height / 2 - 5}
+                  {/* Pinpoint center dot */}
+                  <Circle
+                    cx={person.x}
+                    cy={person.y}
+                    r={2.5}
                     fill="#FFFFFF"
-                    fontFamily="Nunito Sans"
-                    fontSize="10"
-                    fontWeight="bold"
-                  >
-                    {person.label}
-                  </SvgText>
+                  />
                 </G>
               ))}
           </Svg>

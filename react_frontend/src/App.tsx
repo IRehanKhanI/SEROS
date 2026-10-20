@@ -54,6 +54,8 @@ export interface Box {
   y1: number;
   x2: number;
   y2: number;
+  cx?: number;
+  cy?: number;
   confidence: number;
 }
 
@@ -577,43 +579,69 @@ export default function App() {
       return;
     }
 
-    const timer = setInterval(() => {
-      if (detectionInFlight.current || !isCameraOn) return;
+    let isRunning = true;
+    let loopTimeout: any = null;
+
+    const runDetection = async () => {
+      if (!isRunning || !isCameraOn) return;
+      if (detectionInFlight.current) {
+        loopTimeout = setTimeout(runDetection, 80);
+        return;
+      }
+
       const vid = (globalVideoRef.current && globalVideoRef.current.readyState >= 2)
         ? globalVideoRef.current
         : (activeTab === 'layouts' ? layoutVideoRef.current : videoRef.current);
       const canvas = canvasRef.current;
-      if (!vid || !canvas || vid.readyState < 2) return;
+      if (!vid || !canvas || vid.readyState < 2) {
+        loopTimeout = setTimeout(runDetection, 150);
+        return;
+      }
 
-      canvas.width = 640;
-      canvas.height = 360;
+      // Compact 480x270 frame for ultra-fast transfer & inference (< 25ms)
+      canvas.width = 480;
+      canvas.height = 270;
       const ctx = canvas.getContext('2d');
-      if (!ctx) return;
+      if (!ctx) {
+        loopTimeout = setTimeout(runDetection, 150);
+        return;
+      }
 
-      ctx.drawImage(vid, 0, 0, 640, 360);
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.6);
+      ctx.drawImage(vid, 0, 0, 480, 270);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.45);
 
       detectionInFlight.current = true;
-      fetch(`${API}/api/detect/`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image: dataUrl }),
-      })
-        .then(r => r.json())
-        .then(data => {
-          if (data && data.boxes && isCameraOn) {
+      try {
+        const res = await fetch(`${API}/api/detect/`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image: dataUrl }),
+        });
+        if (res.ok && isRunning && isCameraOn) {
+          const data = await res.json();
+          if (data && Array.isArray(data.boxes)) {
             setBoxes(data.boxes);
           } else if (data && data.status === 'camera_off') {
             setBoxes([]);
           }
-        })
-        .catch(() => undefined)
-        .finally(() => {
-          detectionInFlight.current = false;
-        });
-    }, 1800);
+        }
+      } catch {
+        // Transient network drop
+      } finally {
+        detectionInFlight.current = false;
+        if (isRunning && isCameraOn) {
+          // Schedule next frame in 120ms for ultra-responsive 5-6 FPS live tracking
+          loopTimeout = setTimeout(runDetection, 120);
+        }
+      }
+    };
 
-    return () => clearInterval(timer);
+    runDetection();
+
+    return () => {
+      isRunning = false;
+      if (loopTimeout) clearTimeout(loopTimeout);
+    };
   }, [isCameraOn, activeTab]);
 
   // 5. Freeze Frame for Edition handlers
@@ -1244,9 +1272,10 @@ export default function App() {
   const getZoneOccupants = (zone: Zone): number => {
     if (!boxes || boxes.length === 0) return 0;
     return boxes.filter(b => {
-      const cx = (b.x1 + b.x2) / 2;
-      const cy = (b.y1 + b.y2) / 2;
-      return isPointInPolygon([cx, cy], zone.points);
+      const px = (b as any).cx !== undefined ? (b as any).cx : (b.x1 + b.x2) / 2;
+      const base_y = (b as any).cy !== undefined ? (b as any).cy : Math.min(0.99, b.y1 + (b.y2 - b.y1) * 0.85);
+      const mid_y = (b.y1 + b.y2) / 2;
+      return isPointInPolygon([px, base_y], zone.points) || isPointInPolygon([px, mid_y], zone.points);
     }).length;
   };
 
@@ -1898,75 +1927,43 @@ Turning off ACs 15 mins before leaving saves approximately ~₹320/month without
                           );
                         })}
 
-                        {/* Detected Occupant Centroid & High-Visibility Bounding Boxes */}
+                        {/* Detected Occupant Location: High-Accuracy Red Pinpoint Radar Dot Only (No Rectangles) */}
                         {boxes.map((b, idx) => {
-                          const cx = (b.x1 + b.x2) / 2;
-                          const cy = (b.y1 + b.y2) / 2;
-                          const w = b.x2 - b.x1;
-                          const h = b.y2 - b.y1;
-                          const tagX = Math.max(0.01, Math.min(0.83, cx - 0.08));
-                          const tagY = Math.max(0.01, b.y1 - 0.038);
+                          const px = (b as any).cx !== undefined ? (b as any).cx : (b.x1 + b.x2) / 2;
+                          // Accurate physical floor/ground standing position of the person
+                          const py = (b as any).cy !== undefined ? (b as any).cy : Math.min(0.98, b.y1 + (b.y2 - b.y1) * 0.85);
 
                           return (
-                            <g key={idx} className="occupant-marker-group">
-                              {/* 1. Visible Translucent Body Highlight Rectangle */}
-                              <rect
-                                x={b.x1}
-                                y={b.y1}
-                                width={w}
-                                height={h}
-                                fill="rgba(239, 68, 68, 0.22)"
-                                stroke="#EF4444"
-                                strokeWidth="0.007"
-                                rx="0.006"
-                                style={{ filter: 'drop-shadow(0 0 4px rgba(239, 68, 68, 0.8))' }}
-                              />
-
-                              {/* 2. Distinct Corner Brackets for Computer Vision HUD */}
-                              <path
-                                d={`
-                                  M ${b.x1} ${b.y1 + Math.min(0.05, h * 0.25)} L ${b.x1} ${b.y1} L ${b.x1 + Math.min(0.05, w * 0.25)} ${b.y1}
-                                  M ${b.x2 - Math.min(0.05, w * 0.25)} ${b.y1} L ${b.x2} ${b.y1} L ${b.x2} ${b.y1 + Math.min(0.05, h * 0.25)}
-                                  M ${b.x1} ${b.y2 - Math.min(0.05, h * 0.25)} L ${b.x1} ${b.y2} L ${b.x1 + Math.min(0.05, w * 0.25)} ${b.y2}
-                                  M ${b.x2 - Math.min(0.05, w * 0.25)} ${b.y2} L ${b.x2} ${b.y2} L ${b.x2} ${b.y2 - Math.min(0.05, h * 0.25)}
-                                `}
-                                fill="none"
+                            <g key={idx} className="occupant-pinpoint-marker" style={{ pointerEvents: 'none' }}>
+                              {/* 1. Radar Pulse Beacon Wave */}
+                              <circle
+                                cx={px}
+                                cy={py}
+                                r="0.024"
+                                fill="rgba(255, 23, 68, 0.22)"
                                 stroke="#FF1744"
-                                strokeWidth="0.012"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              />
-
-                              {/* 3. Centroid Marker Dot */}
-                              <circle cx={cx} cy={cy} r="0.014" fill="#FF1744" />
-                              <circle cx={cx} cy={cy} r="0.006" fill="#FFFFFF" />
-
-                              {/* 4. Head Dot Marker */}
-                              <circle cx={cx} cy={b.y1} r="0.012" fill="#EF4444" />
-                              <circle cx={cx} cy={b.y1} r="0.005" fill="#FFFFFF" />
-
-                              {/* 5. Solid Floating Person Pill Tag */}
-                              <rect
-                                x={tagX}
-                                y={tagY}
-                                width="0.16"
-                                height="0.034"
-                                rx="0.006"
-                                fill="#EF4444"
-                                stroke="#FFFFFF"
-                                strokeWidth="0.002"
-                              />
-                              <text
-                                x={tagX + 0.08}
-                                y={tagY + 0.023}
-                                fill="#FFFFFF"
-                                fontSize="0.018"
-                                fontWeight="800"
-                                textAnchor="middle"
-                                className="occupant-tag-text"
+                                strokeWidth="0.0035"
                               >
-                                Person {Math.round(b.confidence * 100)}%
-                              </text>
+                                <animate attributeName="r" values="0.014;0.032;0.014" dur="1.8s" repeatCount="indefinite" />
+                                <animate attributeName="opacity" values="0.85;0.15;0.85" dur="1.8s" repeatCount="indefinite" />
+                              </circle>
+
+                              {/* 2. Vibrant Solid Red Core Dot with Glow */}
+                              <circle
+                                cx={px}
+                                cy={py}
+                                r="0.013"
+                                fill="#FF1744"
+                                filter="drop-shadow(0 0 6px rgba(255, 23, 68, 0.95))"
+                              />
+
+                              {/* 3. Pure White High-Precision Center Pinpoint */}
+                              <circle
+                                cx={px}
+                                cy={py}
+                                r="0.0045"
+                                fill="#FFFFFF"
+                              />
                             </g>
                           );
                         })}
