@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Icon } from './Icon';
 import { UniversalAcRemote, AC_VENDOR_PROTOCOLS } from './UniversalAcRemote';
+import { DEFAULT_BACKEND_URL } from '../../frontend/src/config';
 
 type Point = [number, number];
 
@@ -69,7 +70,7 @@ export interface SensorData {
 
 // Keep the web client on the same LAN backend as the mobile app by default.
 // VITE_API_URL can still override this for deployment or local development.
-const API = (import.meta.env.VITE_API_URL || 'http://10.1.11.21:8000').replace(/\/+$/, '');
+const API = (import.meta.env.VITE_API_URL || DEFAULT_BACKEND_URL).replace(/\/+$/, '');
 
 export const RELAY_PINS: Record<number, number> = {
   1: 16,
@@ -173,7 +174,7 @@ export default function App() {
   const detectionInFlight = useRef(false);
 
   const [connected, setConnected] = useState(true);
-  const [isCameraOn, setIsCameraOn] = useState(true);
+  const [isCameraOn, setIsCameraOn] = useState(false);
   const [mirror, setMirror] = useState(false);
   const [boxes, setBoxes] = useState<Box[]>([]);
   const [cameraError, setCameraError] = useState('');
@@ -349,6 +350,7 @@ export default function App() {
   const [editDevicePower, setEditDevicePower] = useState(24);
   const [isSavingDevice, setIsSavingDevice] = useState(false);
   const [editDeviceNotice, setEditDeviceNotice] = useState<string | null>(null);
+  const [deletingDeviceId, setDeletingDeviceId] = useState<string | null>(null);
 
   // New Layout Modal State
   const [isNewLayoutModalOpen, setIsNewLayoutModalOpen] = useState(false);
@@ -626,12 +628,22 @@ export default function App() {
         const res = await fetch(`${API}/api/detect/`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ image: dataUrl }),
+          body: JSON.stringify({
+            image: dataUrl,
+            section_id: 1,
+            fast: true,
+          }),
         });
         if (res.ok && isRunning && isCameraOn) {
           const data = await res.json();
           if (data && Array.isArray(data.boxes)) {
             setBoxes(data.boxes);
+            // Detection responses already contain the automation result.
+            // Apply it immediately instead of waiting for the 4-second state
+            // poll, so the device cards follow the live red-dot position.
+            if (Array.isArray(data.devices)) {
+              setDevices(data.devices);
+            }
           } else if (data && data.status === 'camera_off') {
             setBoxes([]);
           }
@@ -1339,19 +1351,9 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ on: nextStatus === 'ON', manual_override: true }),
       });
-      if (device.category === 'ac') {
-        await fetch(`${API}/api/ac/power/?on=${nextStatus === 'ON' ? 1 : 0}`, { method: 'POST' }).catch(() => undefined);
-        fetch(`http://192.168.137.97/power?on=${nextStatus === 'ON' ? 1 : 0}`).catch(() => undefined);
-        fetch(`http://192.168.137.97/api/ac/power?on=${nextStatus === 'ON' ? 1 : 0}`).catch(() => undefined);
-      } else if (device.relay) {
-        await fetch(`${API}/api/devices/control/`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ relay: device.relay, state: nextStatus === 'ON' ? 1 : 0 }),
-        }).catch(() => undefined);
-        fetch(`http://192.168.137.97/relayToggle?id=${device.relay}&state=${nextStatus === 'ON' ? 1 : 0}`).catch(() => undefined);
-        fetch(`http://192.168.137.97/api/relay?id=${device.relay}&state=${nextStatus === 'ON' ? 1 : 0}`).catch(() => undefined);
-      }
+      // The backend dispatches the single authoritative hardware command.
+      // Do not send a second direct ESP32 request from the browser.
+      await loadAllData();
     } catch {
       // offline
     }
@@ -1392,6 +1394,29 @@ export default function App() {
     }
   };
 
+  const handleDeleteDevice = async (device: Device) => {
+    if (deletingDeviceId) return;
+    const confirmed = window.confirm(`Delete "${device.name}"? This will detach it from its zone and automation.`);
+    if (!confirmed) return;
+
+    setDeletingDeviceId(device.id);
+    try {
+      const response = await fetch(`${API}/api/devices/${encodeURIComponent(device.id)}/`, {
+        method: 'DELETE',
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || `HTTP ${response.status}`);
+      }
+      setDevices(prev => prev.filter(item => item.id !== device.id));
+      setEditingDevice(current => current?.id === device.id ? null : current);
+    } catch (error) {
+      setEditDeviceNotice(error instanceof Error ? error.message : 'Failed to delete device.');
+    } finally {
+      setDeletingDeviceId(null);
+    }
+  };
+
   // Toggle zone devices
   const handleToggleZone = async (zone: Zone) => {
     setTogglingZoneId(zone.id);
@@ -1417,15 +1442,6 @@ export default function App() {
           })
         )
       );
-      if (zone.relay) {
-        await fetch(`${API}/api/devices/control/`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ relay: zone.relay, state: targetState ? 1 : 0 }),
-        }).catch(() => undefined);
-        fetch(`http://192.168.137.97/relayToggle?id=${zone.relay}&state=${targetState ? 1 : 0}`).catch(() => undefined);
-        fetch(`http://192.168.137.97/api/relay?id=${zone.relay}&state=${targetState ? 1 : 0}`).catch(() => undefined);
-      }
       await loadAllData();
     } catch (err) {
       console.error(err);
@@ -4162,6 +4178,15 @@ Turning off ACs 15 mins before leaving saves approximately ~₹320/month without
                         style={{ padding: '6px 10px', fontSize: 12 }}
                       >
                         Edit
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-card-action delete"
+                        onClick={() => void handleDeleteDevice(dev)}
+                        disabled={deletingDeviceId === dev.id}
+                        title={`Delete ${dev.name}`}
+                      >
+                        {deletingDeviceId === dev.id ? 'Deleting...' : 'Delete'}
                       </button>
                     </div>
 

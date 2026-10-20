@@ -1,9 +1,9 @@
 from django.core.management.base import BaseCommand
-from seros.models import Section, Zone
+from seros.models import Device, Section, Zone
 
 
 class Command(BaseCommand):
-    help = "Create the four initial configurable S.E.R.O.S. sections (without hardcoded default devices)."
+    help = "Create the initial configurable S.E.R.O.S. sections and default presentation devices."
 
     def handle(self, *args, **options):
         sections = []
@@ -34,4 +34,26 @@ class Command(BaseCommand):
                     defaults={"points": [[0, 0], [1, 0], [1, 1], [0, 1]], "shape_type": "rectangle"},
                 )
 
-        self.stdout.write(self.style.SUCCESS("S.E.R.O.S. sections initialized without default devices."))
+        section = sections[0]
+        default_fans = [
+            ("dev-q1-fans-default", "Zone 1 Ceiling Fan", 1, 3),
+            ("dev-q2-fans-default", "Zone 2 Ceiling Fan", 2, 2),
+        ]
+        for device_id, name, quadrant, relay in default_fans:
+            device, _ = Device.objects.get_or_create(
+                device_id=device_id,
+                defaults={
+                    "section": section,
+                    "name": name,
+                    "category": Device.FAN,
+                    "relay": relay,
+                    "power_watts": 65,
+                    "is_on": False,
+                    "speed": 0,
+                },
+            )
+            zone = Zone.objects.filter(section=section, name=f"Quadrant {quadrant}").first()
+            if zone:
+                zone.assigned_devices.add(device)
+
+        self.stdout.write(self.style.SUCCESS("S.E.R.O.S. sections and default devices initialized."))

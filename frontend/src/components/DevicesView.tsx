@@ -356,7 +356,7 @@ export const DevicesView: React.FC = () => {
       await deleteDevice(deviceToDelete.id);
       setDeviceToDelete(null);
     } catch (err) {
-      // Notification handled in context
+      setBackendVerifiedNotice('Delete failed. Check the backend connection and try again.');
     } finally {
       setIsDeleting(false);
     }

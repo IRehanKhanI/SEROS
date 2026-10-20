@@ -2,6 +2,7 @@ import base64
 import json
 import logging
 import os
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -114,8 +115,17 @@ RELAY_TO_ZONE = {relay: zone for zone, relay in ZONE_TO_RELAY.items()}
 # person is near a zone boundary. Keep the last location until a new location
 # is observed consistently instead of chattering the relays on every frame.
 _automation_tracking = {}
+_PERSON_TRACKERS = {}
+_latest_live_detections = {}
+_automation_lock = threading.Lock()
+_manual_targets = {}
+# Only suppress the stale ESP32 reading while a just-issued app command is
+# travelling to the board. A real remote change is accepted immediately after.
+_MANUAL_TARGET_TTL_SECONDS = 1.5
 _AUTOMATION_CONFIRM_FRAMES = 3
 _AUTOMATION_EMPTY_HOLD_SECONDS = 5.0
+_PERSON_TRACKER_TTL_SECONDS = 2.5
+_PERSON_TRACKER_NEARBY_DISTANCE = 0.14
 
 
 def relay_for_zone(zone_num):
@@ -124,6 +134,100 @@ def relay_for_zone(zone_num):
 
 def zone_for_relay(relay_num):
     return RELAY_TO_ZONE.get(int(relay_num), int(relay_num))
+
+
+def _distance_between(box_a, box_b):
+    ax = (box_a["x1"] + box_a["x2"]) / 2.0
+    ay = (box_a["y1"] + box_a["y2"]) / 2.0
+    bx = (box_b["x1"] + box_b["x2"]) / 2.0
+    by = (box_b["y1"] + box_b["y2"]) / 2.0
+    return ((ax - bx) ** 2 + (ay - by) ** 2) ** 0.5
+
+
+def _deduplicate_person_boxes(boxes):
+    """Keep the strongest box when YOLO returns overlapping boxes for one person."""
+    if len(boxes) < 2:
+        return boxes
+
+    def area(box):
+        return max(0.0, box["x2"] - box["x1"]) * max(0.0, box["y2"] - box["y1"])
+
+    def contained_overlap(first, second):
+        overlap_width = max(0.0, min(first["x2"], second["x2"]) - max(first["x1"], second["x1"]))
+        overlap_height = max(0.0, min(first["y2"], second["y2"]) - max(first["y1"], second["y1"]))
+        smaller_area = min(area(first), area(second))
+        return (overlap_width * overlap_height) / smaller_area if smaller_area else 0.0
+
+    kept = []
+    for candidate in sorted(boxes, key=lambda box: box["confidence"], reverse=True):
+        is_duplicate = False
+        for existing in kept:
+            intersection_width = max(0.0, min(candidate["x2"], existing["x2"]) - max(candidate["x1"], existing["x1"]))
+            intersection_height = max(0.0, min(candidate["y2"], existing["y2"]) - max(candidate["y1"], existing["y1"]))
+            intersection = intersection_width * intersection_height
+            union = area(candidate) + area(existing) - intersection
+            iou = intersection / union if union else 0.0
+            if iou >= 0.35 or contained_overlap(candidate, existing) >= 0.60:
+                is_duplicate = True
+                break
+            candidate_width = candidate["x2"] - candidate["x1"]
+            candidate_height = candidate["y2"] - candidate["y1"]
+            existing_width = existing["x2"] - existing["x1"]
+            existing_height = existing["y2"] - existing["y1"]
+            center_distance = _distance_between(candidate, existing)
+            # A partial head/torso/feet box can have little IoU with the
+            # complete person box. Treat it as a duplicate only when its
+            # center is close relative to both boxes, preserving nearby people.
+            if (
+                center_distance < 0.35 * max(candidate_width, existing_width)
+                and center_distance < 0.35 * max(candidate_height, existing_height)
+            ):
+                is_duplicate = True
+                break
+        if not is_duplicate:
+            kept.append(candidate)
+    return kept
+
+
+def _track_people(boxes):
+    """Keep a stable centroid for each detected person across nearby frames."""
+    now = time.monotonic()
+    active = []
+    for box in boxes:
+        cx = (box["x1"] + box["x2"]) / 2.0
+        cy = (box["y1"] + box["y2"]) / 2.0
+        matched = None
+        matched_score = None
+        for tracker_id, tracker in list(_PERSON_TRACKERS.items()):
+            if now - tracker["last_seen"] > _PERSON_TRACKER_TTL_SECONDS:
+                del _PERSON_TRACKERS[tracker_id]
+                continue
+            dx = cx - tracker["cx"]
+            dy = cy - tracker["cy"]
+            distance = (dx * dx + dy * dy) ** 0.5
+            if distance <= _PERSON_TRACKER_NEARBY_DISTANCE:
+                score = (1.0 - distance) * 0.5 + box["confidence"] * 0.5
+                if matched_score is None or score > matched_score:
+                    matched = tracker_id
+                    matched_score = score
+        if matched is None:
+            tracker_id = f"person-{now}-{len(_PERSON_TRACKERS)}"
+            _PERSON_TRACKERS[tracker_id] = {"cx": cx, "cy": cy, "last_seen": now}
+            matched = tracker_id
+        else:
+            tracker = _PERSON_TRACKERS[matched]
+            tracker["cx"] = 0.5 * tracker["cx"] + 0.5 * cx
+            tracker["cy"] = 0.5 * tracker["cy"] + 0.5 * cy
+            tracker["last_seen"] = now
+        active.append({
+            **box,
+            "tracker_id": matched,
+            # Always publish the current observation. The tracker ID is only
+            # for identity continuity; it must never pin the marker in place.
+            "cx": (box["x1"] + box["x2"]) / 2.0,
+            "cy": min(0.99, box["y1"] + (box["y2"] - box["y1"]) * 0.85),
+        })
+    return active
 
 
 def _stable_relay_states(section_id, raw_states, has_detection):
@@ -162,6 +266,18 @@ def _stable_relay_states(section_id, raw_states, has_detection):
     return stable if stable is not None else normalized if tracking["candidate_frames"] >= 2 else {}
 
 
+def _apply_automation_async(section_id, boxes):
+    """Run relay work without blocking the response carrying live coordinates."""
+    if not _automation_lock.acquire(blocking=False):
+        return
+    try:
+        _apply_automation(section_id, boxes)
+    except Exception:
+        logger.exception("Background occupancy automation failed")
+    finally:
+        _automation_lock.release()
+
+
 def get_device_quadrant(device):
     """
     Deterministically maps any device to its quadrant (1, 2, 3, or 4):
@@ -187,6 +303,11 @@ def get_device_quadrant(device):
     return 1
 
 
+def get_device_relay(device):
+    """Return the physical ESP32 relay for a device's assigned zone."""
+    return device.relay if device.relay in [1, 2, 3, 4] else relay_for_zone(get_device_quadrant(device))
+
+
 _ac_settings = {
     "vendor": "MITSUBISHI_AC",
     "protocol": "MITSUBISHI_AC",
@@ -199,18 +320,26 @@ _ac_settings = {
 def _device_payload(device):
     status = "ON" if device.is_on else "OFF"
     assigned_zone = device.zones.first()
+    # Older records may use singular category names. The mobile client uses
+    # the API's canonical plural values for filtering and rendering.
+    category = {
+        "fan": "fans",
+        "light": "lights",
+        "air_conditioner": "ac",
+        "air-conditioner": "ac",
+    }.get(str(device.category).strip().lower(), str(device.category).strip().lower())
     
     quadrant_num = get_device_quadrant(device)
     quadrant_label = f"Quadrant {quadrant_num}"
     quadrant_pos = QUADRANT_POSITIONS.get(quadrant_num, "Top-Left")
 
     # Determine rated wattage (lights: 24W, fans: 65W, ac: 1450W, other: 40W)
-    default_watts = 1450 if device.category == "ac" else 65 if device.category == "fans" else 24
+    default_watts = 1450 if category == "ac" else 65 if category == "fans" else 24
     rated_watts = device.power_watts if (device.power_watts and device.power_watts > 0) else default_watts
     active_watts = rated_watts if device.is_on else 0
 
     # Multi-quadrant list (AC units default to all 4 quadrants [1, 2, 3, 4])
-    if device.category == "ac":
+    if category == "ac":
         quadrants = [1, 2, 3, 4]
         relay_val = None
         automation_note = "Universal IR Remote Controller (GPIO 4/14) • No Hardware Relay"
@@ -231,7 +360,7 @@ def _device_payload(device):
         "quadrantPos": quadrant_pos,
         "pin": pin,
         "quadrantId": str(assigned_zone.id) if assigned_zone else str(quadrant_num),
-        "category": device.category,
+        "category": category,
         "status": status,
         "speedLevel": device.speed,
         "powerWatts": active_watts,
@@ -261,8 +390,20 @@ def _section_payload(section):
         age_seconds = (timezone.now() - latest_detection.created_at).total_seconds()
         is_recent = age_seconds < 45
 
-    occupancy = latest_detection.person_count if (latest_detection and is_recent and camera_on) else 0
-    boxes = latest_detection.boxes if (latest_detection and is_recent and camera_on) else []
+    live_detection = _latest_live_detections.get(int(section.id))
+    live_is_recent = bool(
+        live_detection
+        and camera_on
+        and (timezone.now() - live_detection["created_at"]).total_seconds() <= 5
+    )
+    if live_is_recent:
+        occupancy = live_detection["person_count"]
+        boxes = live_detection["boxes"]
+        live_frame = live_detection["processed_frame"]
+    else:
+        occupancy = latest_detection.person_count if (latest_detection and is_recent and camera_on) else 0
+        boxes = latest_detection.boxes if (latest_detection and is_recent and camera_on) else []
+        live_frame = ""
 
     # Map zones from currently active room layout in SQLite
     active_layout = _get_active_layout()
@@ -314,7 +455,9 @@ def _section_payload(section):
         zones_payload = [_zone_payload(zone, _zone_occupants(zone)) for zone in db_zones]
 
     processed_frame = ""
-    if latest_detection and latest_detection.processed_frame and camera_on and is_recent:
+    if live_frame and camera_on and live_is_recent:
+        processed_frame = live_frame
+    elif latest_detection and latest_detection.processed_frame and camera_on and is_recent:
         pf = latest_detection.processed_frame
         processed_frame = pf if pf.startswith("data:") else ("data:image/jpeg;base64," + pf)
 
@@ -325,7 +468,7 @@ def _section_payload(section):
         "category": "Configurable Section",
         "occupancyCount": occupancy,
         "occupancyText": f"{occupancy} people inside" if occupancy > 0 else "Empty",
-        "fansStatus": "ON" if section.devices.filter(category="fans", is_on=True).exists() else "OFF",
+        "fansStatus": "ON" if section.devices.filter(category__in=["fans", "fan"], is_on=True).exists() else "OFF",
         "lightsStatus": "ON" if section.devices.filter(category="lights", is_on=True).exists() else "OFF",
         "icon": "meeting_room",
         "latestFrame": processed_frame,
@@ -371,15 +514,29 @@ def state(request):
             # 1. Sync physical relay states changed via physical mini remote or buttons
             relays = esp.get("relays")
             if isinstance(relays, list) and len(relays) == 4:
-                for idx, r_state in enumerate(relays):
-                    r_num = idx + 1
-                    Device.objects.filter(relay=r_num).exclude(is_on=bool(r_state)).update(is_on=bool(r_state))
+                synced_devices = list(Device.objects.all())
+                for device in synced_devices:
+                    r_num = get_device_relay(device)
+                    r_state = relays[r_num - 1]
+                    target = _manual_targets.get(("relay", r_num))
+                    if target and time.monotonic() - target["at"] <= _MANUAL_TARGET_TTL_SECONDS and target["state"] != bool(r_state):
+                        continue
+                    if device.category != "ac" and device.is_on != bool(r_state):
+                        Device.objects.filter(pk=device.pk).update(
+                            is_on=bool(r_state),
+                            manual_override=True,
+                        )
 
             # 2. Sync AC power and settings from mini remote / ESP32 state
             ac_power = esp.get("ac_power")
             if ac_power is not None:
                 ac_qs = Device.objects.filter(category="ac")
-                ac_qs.exclude(is_on=bool(ac_power)).update(is_on=bool(ac_power))
+                target = _manual_targets.get(("ac", "power"))
+                if not (target and time.monotonic() - target["at"] <= _MANUAL_TARGET_TTL_SECONDS and target["state"] != bool(ac_power)):
+                    ac_qs.exclude(is_on=bool(ac_power)).update(
+                        is_on=bool(ac_power),
+                        manual_override=True,
+                    )
                 if esp.get("ac_temperature") is not None:
                     try:
                         ac_qs.update(target_temperature=float(esp["ac_temperature"]))
@@ -502,11 +659,23 @@ def control_device_relay(request):
         state_int = 1 if (str(state_val) in ["1", "true", "True"]) else 0
 
         # Update database device if mapped to this relay
-        Device.objects.filter(relay=relay_num).update(is_on=bool(state_int))
+        Device.objects.filter(relay=relay_num).update(
+            is_on=bool(state_int),
+            manual_override=True,
+        )
+        _manual_targets[("relay", relay_num)] = {
+            "state": bool(state_int),
+            "at": time.monotonic(),
+        }
 
-        # Forward directly to ESP32
-        res = _esp32_request(f"/api/relay?id={relay_num}&state={state_int}")
-        return _response({"status": "ok", "relay": relay_num, "state": state_int, "esp32": res})
+        def dispatch():
+            try:
+                _esp32_request(f"/api/relay?id={relay_num}&state={state_int}")
+            except Exception:
+                logger.exception("Direct relay command failed for relay %s", relay_num)
+
+        threading.Thread(target=dispatch, daemon=True).start()
+        return _response({"status": "ok", "relay": relay_num, "state": state_int})
     except ConnectionError as exc:
         logger.error("ESP32 relay %s command failed: %s", relay, exc)
         return _response({
@@ -771,6 +940,28 @@ def device_detail(request, device_id):
 delete_device = device_detail
 
 
+def _dispatch_device_hardware(device_id, payload, desired_on=None, desired_speed=None):
+    try:
+        device = Device.objects.get(device_id=device_id)
+        on_state = device.is_on if desired_on is None else bool(desired_on)
+        if device.category == "ac":
+            if "on" in payload:
+                _esp32_request(f"/api/ac/power?on={1 if on_state else 0}")
+            if "target_temperature" in payload or "temp" in payload:
+                _esp32_request(f"/api/ac/temp?value={int(device.target_temperature)}")
+            if "mode" in payload:
+                _esp32_request(f"/api/ac/mode?mode={payload['mode']}")
+            if "fan" in payload:
+                _esp32_request(f"/api/ac/fan?fan={payload['fan']}")
+            if "vendor" in payload:
+                _esp32_request(f"/api/ac/vendor?vendor={payload['vendor']}")
+            return
+        relay_num = get_device_relay(device)
+        _esp32_request(f"/api/relay?id={relay_num}&state={int(on_state)}")
+    except Exception:
+        logger.exception("Hardware command failed for device %s", device_id)
+
+
 @csrf_exempt
 def control_device(request, device_id):
     if request.method == "OPTIONS":
@@ -787,53 +978,37 @@ def control_device(request, device_id):
         if "speed" in data:
             device.speed = max(0, min(3, int(data["speed"])))
             device.is_on = device.speed > 0
+        # Any app or website command is a deliberate manual command. Automation
+        # must not immediately undo it on the next camera frame.
+        if "manual_override" not in data:
+            device.manual_override = True
         if "target_temperature" in data or "temp" in data:
             try:
                 device.target_temperature = float(data.get("target_temperature") or data.get("temp") or 24.0)
             except (ValueError, TypeError):
                 pass
         device.save()
+        if device.category == "ac" and "on" in data:
+            _manual_targets[("ac", "power")] = {
+                "state": device.is_on,
+                "at": time.monotonic(),
+            }
+        elif device.category != "ac" and ("on" in data or "speed" in data):
+            _manual_targets[("relay", get_device_relay(device))] = {
+                "state": device.is_on,
+                "at": time.monotonic(),
+            }
 
         state_icon = "🟢 [ON]" if device.is_on else "🔴 [OFF]"
         print(f"\n========================================")
         print(f"{state_icon} Device: {device.name} (ID: {device.device_id}, Category: {device.category})")
-
-        if device.category == "ac":
-            # Universal AC IR Remote Control - NO RELAY
-            print(f"📡 Universal IR Remote Control (GPIO 4/14) - No Hardware Relay")
-            try:
-                if "on" in data:
-                    _esp32_request(f"/api/ac/power?on={1 if device.is_on else 0}")
-                if "target_temperature" in data or "temp" in data:
-                    _esp32_request(f"/api/ac/temp?value={int(device.target_temperature)}")
-                if "mode" in data:
-                    _esp32_request(f"/api/ac/mode?mode={data['mode']}")
-                if "fan" in data:
-                    _esp32_request(f"/api/ac/fan?fan={data['fan']}")
-                if "vendor" in data:
-                    _esp32_request(f"/api/ac/vendor?vendor={data['vendor']}")
-            except Exception as esp_err:
-                print(f"❌ ESP32 AC IR Communication Failed: {esp_err}")
-            print(f"========================================\n")
-            return _response({"status": "ok", "device": _device_payload(device)})
-
-        relay_num = device.relay or get_device_quadrant(device)
-        print(f"⚡ Quadrant / Relay: {relay_num} | State: {'ON' if device.is_on else 'OFF'}")
-        
-        if relay_num:
-            if not getattr(settings, "SEROS_ESP32_URL", ""):
-                print(f"⚠️ [WARNING] SEROS_ESP32_URL is not configured! Relays will not physically switch.")
-                print(f"👉 Set environment variable SEROS_ESP32_URL=http://<ESP32_IP>")
-            else:
-                esp_url = f"{settings.SEROS_ESP32_URL.rstrip('/')}/api/relay?id={relay_num}&state={int(device.is_on)}"
-                print(f"📡 Dispatching to ESP32: {esp_url}")
-                try:
-                    res = _esp32_request(f"/api/relay?id={relay_num}&state={int(device.is_on)}")
-                    print(f"✅ ESP32 Response: {res}")
-                except Exception as esp_err:
-                    print(f"❌ ESP32 Communication Failed: {esp_err}")
-        print(f"========================================\n")
+        threading.Thread(
+            target=_dispatch_device_hardware,
+            args=(device.device_id, data, device.is_on, device.speed),
+            daemon=True,
+        ).start()
         return _response({"status": "ok", "device": _device_payload(device)})
+
     except Device.DoesNotExist:
         return _response({"error": "Device not found."}, 404)
     except (ValueError, TypeError) as exc:
@@ -979,11 +1154,12 @@ def _apply_automation(section_id, boxes):
     # Turns ON AC when a person is present, turns OFF when empty.
     ac_devices = [d for d in all_devices if d.category == "ac"]
     for ac_dev in ac_devices:
+        if ac_dev.manual_override:
+            continue
         new_ac_on = any_person_in_room
-        if ac_dev.is_on != new_ac_on or ac_dev.manual_override:
+        if ac_dev.is_on != new_ac_on:
             ac_dev.is_on = new_ac_on
-            ac_dev.manual_override = False
-            ac_dev.save(update_fields=["is_on", "manual_override"])
+            ac_dev.save(update_fields=["is_on"])
             try:
                 _esp32_request(f"/api/ac/power?on={1 if new_ac_on else 0}")
                 print(f"{'🟢 [AC ON]' if new_ac_on else '🔴 [AC OFF]'} [AUTOMATION] AC power -> {new_ac_on} (Person in room: {any_person_in_room})")
@@ -1016,16 +1192,15 @@ def _apply_automation(section_id, boxes):
             relay = relay_for_zone(z_num)
             matching_devs = [
                 d for d in all_devices
-                if d.category != "ac" and get_device_quadrant(d) == z_num
+                if d.category != "ac" and not d.manual_override and get_device_quadrant(d) == z_num
             ]
             for dev in matching_devs:
                 new_on = bool(relay_states.get(relay, False))
                 new_speed = (2 if dev.category == "fans" else 0) if new_on else 0
-                if dev.is_on != new_on or dev.speed != new_speed or dev.manual_override:
+                if dev.is_on != new_on or dev.speed != new_speed:
                     dev.is_on = new_on
                     dev.speed = new_speed
-                    dev.manual_override = False
-                    dev.save(update_fields=["is_on", "speed", "manual_override"])
+                    dev.save(update_fields=["is_on", "speed"])
 
         previous_relay_states = _automation_tracking[section_id].get("sent", {})
         # Send only changed commands; repeating the same command every camera
@@ -1067,17 +1242,19 @@ def _apply_automation(section_id, boxes):
     for q in [1, 2, 3, 4]:
         relay = relay_for_zone(q)
         is_occupied = relay_states.get(relay, False)
-        q_devices = [d for d in all_devices if d.category != "ac" and get_device_quadrant(d) == q]
+        q_devices = [
+            d for d in all_devices
+            if d.category != "ac" and not d.manual_override and get_device_quadrant(d) == q
+        ]
         for dev in q_devices:
             new_is_on = bool(is_occupied)
             new_speed = (2 if dev.category == "fans" else 0) if new_is_on else 0
             relay = relay_for_zone(q)
-            if dev.is_on != new_is_on or dev.speed != new_speed or dev.relay != relay or dev.manual_override:
+            if dev.is_on != new_is_on or dev.speed != new_speed or dev.relay != relay:
                 dev.is_on = new_is_on
                 dev.speed = new_speed
                 dev.relay = relay
-                dev.manual_override = False
-                dev.save(update_fields=["is_on", "speed", "relay", "manual_override"])
+                dev.save(update_fields=["is_on", "speed", "relay"])
 
         previous_relay_states = _automation_tracking[section_id].get("sent", {})
         if previous_relay_states.get(relay) != is_occupied:
@@ -1093,7 +1270,7 @@ def _apply_automation(section_id, boxes):
     }
 
 
-def process_image_and_record(image, section_id=1):
+def process_image_and_record(image, section_id=1, persist=True):
     """
     Core YOLO inference strictly detecting humans (COCO class 0: 'person').
     Rejects any other object completely.
@@ -1111,17 +1288,26 @@ def process_image_and_record(image, section_id=1):
             "processed_frame": "",
         }
 
-    # Downscale large input frames for real-time inference speed
-    if image.width > 640 or image.height > 480:
+    # Downscale large input frames for real-time inference speed. Fast live
+    # requests are already small and should not spend time resizing twice.
+    max_width, max_height = (480, 360) if not persist else (640, 480)
+    if image.width > max_width or image.height > max_height:
         image = image.copy()
-        image.thumbnail((640, 480), Image.Resampling.BILINEAR)
+        image.thumbnail((max_width, max_height), Image.Resampling.BILINEAR)
 
     model = _get_yolo_model()
 
-    # STRICT FILTER: classes=[0] ensures inference detects human/person class only.
-    # conf=0.25 detects ALL people accurately (seated, distant, angled, or occluded).
-    # imgsz=320 ensures ultra-fast real-time inference (15-25ms).
-    results = model.predict(image, classes=[0], conf=0.25, imgsz=320, verbose=False)
+    # Restrict inference to people, but keep a lower confidence threshold so
+    # turned, cropped, seated, and partially occluded people are not discarded.
+    # The small inference size keeps the live browser loop responsive.
+    results = model.predict(
+        image,
+        classes=[0],
+        conf=0.15,
+        imgsz=256 if not persist else 320,
+        max_det=20,
+        verbose=False,
+    )
     result = results[0]
 
     width, height = image.size
@@ -1136,8 +1322,9 @@ def process_image_and_record(image, section_id=1):
             # 1. Strict verification: Must be COCO class 0 ('person'). Rejects all objects.
             if int(cls_id) != 0:
                 continue
-            # 2. Confidence threshold allowing accurate multi-person detection
-            if conf < 0.25:
+            # Keep low-confidence partial-person detections; the model already
+            # filters to the COCO person class above.
+            if conf < 0.15:
                 continue
 
             x1, y1, x2, y2 = box
@@ -1150,7 +1337,7 @@ def process_image_and_record(image, section_id=1):
             bw = nx2 - nx1
             bh = ny2 - ny1
             # 3. Geometric verification for human bodies (allows distant/seated room occupants)
-            if bw < 0.015 or bh < 0.035:
+            if bw < 0.008 or bh < 0.015:
                 continue
             if bw > 0.95 and bh < 0.15:
                 continue
@@ -1170,34 +1357,26 @@ def process_image_and_record(image, section_id=1):
                 "label": "Human"
             })
 
-    # Render clean visual annotations: Red pinpoint radar dot ONLY (NO rectangles, NO labels)
-    annotated = image.copy()
-    draw = ImageDraw.Draw(annotated)
+    boxes = _deduplicate_person_boxes(boxes)
+    boxes = _track_people(boxes)
 
-    for b in boxes:
-        cx_px = int(b["cx"] * width)
-        cy_px = int(b["cy"] * height)
-
-        # 1. Soft red radar pulse wave
-        r_wave = 12
-        draw.ellipse([cx_px - r_wave, cy_px - r_wave, cx_px + r_wave, cy_px + r_wave], outline="#FF1744", width=2)
-
-        # 2. Solid glowing red core dot
-        r_core = 6
-        draw.ellipse([cx_px - r_core, cy_px - r_core, cx_px + r_core, cy_px + r_core], fill="#FF1744", outline="#FFFFFF", width=2)
-
-        # 3. Pure white high-precision center pinpoint
-        r_center = 2
-        draw.ellipse([cx_px - r_center, cy_px - r_center, cx_px + r_center, cy_px + r_center], fill="#FFFFFF")
-
-    # 4. Clean unobtrusive status watermark
-    header_text = f"SEROS AI • Humans: {len(boxes)}"
-    draw.rectangle([10, 10, 190, 30], fill="#111827")
-    draw.text((16, 13), header_text, fill="#00E676")
-
-    output = BytesIO()
-    annotated.save(output, format="JPEG", quality=65, optimize=False)
-    processed_frame = "data:image/jpeg;base64," + base64.b64encode(output.getvalue()).decode()
+    processed_frame = ""
+    if persist:
+        # Render and encode only frames that are consumed by the mobile/latest
+        # frame view. The laptop live loop only needs boxes and zone state.
+        annotated = image.copy()
+        draw = ImageDraw.Draw(annotated)
+        for b in boxes:
+            cx_px = int(b["cx"] * width)
+            cy_px = int(b["cy"] * height)
+            draw.ellipse([cx_px - 12, cy_px - 12, cx_px + 12, cy_px + 12], outline="#FF1744", width=2)
+            draw.ellipse([cx_px - 6, cy_px - 6, cx_px + 6, cy_px + 6], fill="#FF1744", outline="#FFFFFF", width=2)
+            draw.ellipse([cx_px - 2, cy_px - 2, cx_px + 2, cy_px + 2], fill="#FFFFFF")
+        draw.rectangle([10, 10, 190, 30], fill="#111827")
+        draw.text((16, 13), f"SEROS AI • Humans: {len(boxes)}", fill="#00E676")
+        output = BytesIO()
+        annotated.save(output, format="JPEG", quality=65, optimize=False)
+        processed_frame = "data:image/jpeg;base64," + base64.b64encode(output.getvalue()).decode()
 
     # Save to database
     try:
@@ -1207,18 +1386,29 @@ def process_image_and_record(image, section_id=1):
 
     quadrant_occupied = {1: False, 2: False, 3: False, 4: False}
     if section:
-        Detection.objects.create(
-            section=section,
-            person_count=len(boxes),
-            boxes=boxes,
-            processed_frame=processed_frame
-        )
-        # Prune older detections to keep database slim (<1MB) and queries instantaneous
-        old_ids = list(section.detections.order_by("-id").values_list("id", flat=True)[5:])
-        if old_ids:
-            Detection.objects.filter(id__in=old_ids).delete()
+        if persist:
+            Detection.objects.create(
+                section=section,
+                person_count=len(boxes),
+                boxes=boxes,
+                processed_frame=processed_frame
+            )
+            # Prune older detections to keep database slim (<1MB) and queries instantaneous
+            old_ids = list(section.detections.order_by("-id").values_list("id", flat=True)[5:])
+            if old_ids:
+                Detection.objects.filter(id__in=old_ids).delete()
 
-        quadrant_occupied = _apply_automation(section.id, boxes) or quadrant_occupied
+        _latest_live_detections[int(section.id)] = {
+            "created_at": timezone.now(),
+            "person_count": len(boxes),
+            "boxes": boxes,
+            "processed_frame": processed_frame,
+        }
+        threading.Thread(
+            target=_apply_automation_async,
+            args=(section.id, boxes),
+            daemon=True,
+        ).start()
 
     return {
         "status": "ok",
@@ -1263,7 +1453,10 @@ def detect(request):
         image = Image.open(BytesIO(image_bytes)).convert("RGB")
 
         section_id = data.get("section_id", 1)
-        res = process_image_and_record(image, section_id=section_id)
+        # The laptop requests fast mode: YOLO, zone calculation, and relay
+        # automation remain active, while JPEG/database work is skipped.
+        fast = bool(data.get("fast"))
+        res = process_image_and_record(image, section_id=section_id, persist=not fast)
         return _response(res)
     except (ValueError, TypeError, KeyError, base64.binascii.Error) as exc:
         return _response({"error": str(exc)}, 400)
@@ -1296,6 +1489,19 @@ def latest_camera_frame(request):
         section = Section.objects.first()
 
     latest = section.detections.order_by("-id").first() if section else None
+    live = _latest_live_detections.get(int(section.id)) if section else None
+    if live:
+        live_age = (timezone.now() - live["created_at"]).total_seconds()
+        if live_age <= 5:
+            return _response({
+                "status": "ok",
+                "enabled": True,
+                "section_id": section.id if section else 1,
+                "people": live["person_count"],
+                "boxes": live["boxes"],
+                "frame": live["processed_frame"] or None,
+                "timestamp": live["created_at"].isoformat(),
+            })
     if not latest:
         return _response({
             "status": "ok",

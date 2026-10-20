@@ -68,7 +68,7 @@ export const RoomsView: React.FC = () => {
   const [activeCamIndex, setActiveCamIndex] = useState<number>(0);
   const activeCamera = cameraOptions[activeCamIndex];
 
-  const [captureInterval, setCaptureInterval] = useState<3 | 5 | 10>(3);
+  const [captureInterval, setCaptureInterval] = useState<1 | 2 | 3>(1);
   const [mirrorCamera, setMirrorCamera] = useState(false);
   const [isCameraActive, setIsCameraActive] = useState(isCameraEnabled);
 
@@ -103,6 +103,7 @@ export const RoomsView: React.FC = () => {
 
   // Persons Simulation / YOLO Detections
   const [detectedPersons, setDetectedPersons] = useState<DetectedPerson[]>([]);
+  const [livePeopleCount, setLivePeopleCount] = useState<number | null>(null);
   const [processedFrame, setProcessedFrame] = useState<string | null>(() => selectedRoom.latestFrame || null);
 
   const prevFrameRef = useRef<string>('');
@@ -114,6 +115,7 @@ export const RoomsView: React.FC = () => {
     if (!isCameraActive) {
       setProcessedFrame('');
       setDetectedPersons([]);
+      setLivePeopleCount(null);
       return;
     }
     if (selectedRoom?.latestFrame && selectedRoom.latestFrame !== prevFrameRef.current) {
@@ -142,7 +144,7 @@ export const RoomsView: React.FC = () => {
       prevZonesJsonRef.current = currentZonesJson;
       setZones(selectedRoom.zones);
     }
-  }, [selectedRoom?.id, selectedRoom?.latestFrame, selectedRoom?.occupancyCount, activeLayoutId, isCameraActive]);
+  }, [selectedRoom?.id, selectedRoom?.latestFrame, selectedRoom?.occupancyCount, selectedRoom?.zones, activeLayoutId, isCameraActive]);
 
   // 2. Continuous Backend Frame & YOLO Polling (Runs on mobile and web every 3s)
   useEffect(() => {
@@ -152,6 +154,7 @@ export const RoomsView: React.FC = () => {
       return;
     }
     let stopped = false;
+    let uploadInFlight = false;
     const fetchLatest = async () => {
       if (stopped || !backendUrl) return;
       try {
@@ -160,7 +163,11 @@ export const RoomsView: React.FC = () => {
           if (result.status === 'off' || (result as any).enabled === false) {
             setProcessedFrame('');
             setDetectedPersons([]);
+            setLivePeopleCount(0);
           } else {
+            setLivePeopleCount(Array.isArray(result.boxes)
+              ? result.boxes.length
+              : (typeof result.people === 'number' ? result.people : 0));
             if (result.frame) {
               setProcessedFrame(result.frame);
             }
@@ -192,7 +199,7 @@ export const RoomsView: React.FC = () => {
     };
 
     fetchLatest();
-    const intervalTimer = setInterval(fetchLatest, captureInterval * 1000);
+    const intervalTimer = setInterval(fetchLatest, 800);
 
     // 3. If running in browser with webcam permission, also allow browser capture upload
     let stream: MediaStream | undefined;
@@ -213,7 +220,8 @@ export const RoomsView: React.FC = () => {
         canvas.height = video.videoHeight || 480;
 
         const captureAndUpload = async () => {
-          if (stopped) return;
+          if (stopped || uploadInFlight) return;
+          uploadInFlight = true;
           const context = canvas.getContext('2d');
           if (context) {
             context.save();
@@ -225,10 +233,16 @@ export const RoomsView: React.FC = () => {
             context.restore();
           }
           try {
-            const res = await serosApi.detectOccupancy(backendUrl, canvas.toDataURL('image/jpeg', 0.8), selectedRoomId);
+            const res = await serosApi.detectOccupancy(
+              backendUrl,
+              canvas.toDataURL('image/jpeg', 0.55),
+              selectedRoomId,
+              true
+            );
             if (!stopped && res) {
               if (res.processed_frame) setProcessedFrame(res.processed_frame);
               if (Array.isArray(res.boxes)) {
+                setLivePeopleCount(res.boxes.length);
                 const bStr = JSON.stringify(res.boxes);
                 if (bStr !== prevBoxesJsonRef.current) {
                   prevBoxesJsonRef.current = bStr;
@@ -252,6 +266,8 @@ export const RoomsView: React.FC = () => {
             }
           } catch {
             // Keep existing frame on transient error
+          } finally {
+            uploadInFlight = false;
           }
         };
 
@@ -976,7 +992,7 @@ export const RoomsView: React.FC = () => {
           <View style={styles.yoloPill}>
             <View style={styles.pingDot} />
             <Text style={styles.yoloText}>
-              YOLO Vision: {detectedPersons.length || selectedRoom.occupancyCount} Humans
+              YOLO Vision: {livePeopleCount !== null ? livePeopleCount : (detectedPersons.length || selectedRoom.occupancyCount)} Humans
             </Text>
           </View>
 
@@ -1068,10 +1084,10 @@ export const RoomsView: React.FC = () => {
           <View style={styles.camSettingsRow}>
             <View style={styles.frameIntervalRow}>
               <Text style={styles.activeZoneLabel}>Send frame:</Text>
-              {[3, 5, 10].map(seconds => (
+              {[1, 2, 3].map(seconds => (
                 <TouchableOpacity
                   key={seconds}
-                  onPress={() => setCaptureInterval(seconds as 3 | 5 | 10)}
+                  onPress={() => setCaptureInterval(seconds as 1 | 2 | 3)}
                   style={[styles.smallToggle, captureInterval === seconds && styles.smallToggleActive]}
                   activeOpacity={0.8}
                 >
@@ -1627,10 +1643,11 @@ export const RoomsView: React.FC = () => {
           if (d.category === 'ac') return true;
           // Backend assignment is authoritative. The quadrant fallback is
           // only for older records that do not yet have zone assignments.
-          if (Array.isArray(zone.assignedDeviceIds) && zone.assignedDeviceIds.length > 0) {
-            return zone.assignedDeviceIds.includes(d.id);
-          }
-          return d.quadrantNum === zNum;
+          const explicitlyAssigned = Array.isArray(zone.assignedDeviceIds)
+            && zone.assignedDeviceIds.includes(d.id);
+          const belongsToQuadrant = d.quadrantNum === zNum
+            || (Array.isArray(d.quadrants) && d.quadrants.includes(zNum));
+          return explicitlyAssigned || belongsToQuadrant;
         });
         const occ = getZoneDisplayOccupancy(zone);
         return (

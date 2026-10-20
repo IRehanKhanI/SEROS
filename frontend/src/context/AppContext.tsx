@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   ScreenView,
@@ -13,7 +13,7 @@ import {
   RoomLayout
 } from '../types';
 import { serosApi } from '../api/serosApi';
-import { BACKEND_URL_STORAGE_KEY, DEFAULT_BACKEND_URL, DEFAULT_ESP32_URL, ESP32_URL_STORAGE_KEY } from '../config';
+import { BACKEND_URL_STORAGE_KEY, DEFAULT_BACKEND_URL, DEFAULT_ESP32_URL, ESP32_URL_STORAGE_KEY, LEGACY_WIFI_BACKEND_URL } from '../config';
 
 interface AppContextType {
   currentView: ScreenView;
@@ -118,7 +118,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   useEffect(() => {
     void AsyncStorage.getItem(BACKEND_URL_STORAGE_KEY).then(saved => {
-      if (saved?.trim()) setBackendUrlState(saved.trim().replace(/\/+$/, ''));
+      const clean = saved?.trim().replace(/\/+$/, '');
+      if (clean) {
+        const migrated = clean === LEGACY_WIFI_BACKEND_URL ? DEFAULT_BACKEND_URL : clean;
+        setBackendUrlState(migrated);
+        if (migrated !== clean) {
+          void AsyncStorage.setItem(BACKEND_URL_STORAGE_KEY, migrated);
+        }
+      }
     });
     void AsyncStorage.getItem(ESP32_URL_STORAGE_KEY).then(saved => {
       if (saved?.trim()) {
@@ -135,6 +142,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const [currentView, setCurrentView] = useState<ScreenView>('home');
   const [devices, setDevices] = useState<Device[]>([]);
+  const pendingDeviceCommands = useRef(new Set<string>());
+  const refreshStateInFlight = useRef<Promise<void> | null>(null);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [selectedRoomId, setSelectedRoomId] = useState<string>('');
   const [rules, setRules] = useState<AutoRule[]>([]);
@@ -209,25 +218,43 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const refreshState = async () => {
-    const data = await serosApi.getState(backendUrl);
-    setDevices(data.devices || []);
-    setRooms(data.rooms || []);
-    setRules(data.rules || []);
-    setSelectedRoomId(current => current || data.rooms?.[0]?.id || '');
-    if ((data as any).sensor) {
-      setSensorData((data as any).sensor);
+    if (refreshStateInFlight.current) return refreshStateInFlight.current;
+    const request = (async () => {
+      const data = await serosApi.getState(backendUrl);
+      const normalizedDevices = (data.devices || []).map((device: Device & { category?: string }) => {
+        const category = String(device.category || '').trim().toLowerCase();
+        return {
+          ...device,
+          category: category === 'fan' ? 'fans' : category === 'light' ? 'lights' : category === 'air_conditioner' || category === 'air-conditioner' ? 'ac' : category || 'other',
+        } as Device;
+      });
+      setDevices(normalizedDevices);
+      setRooms(data.rooms || []);
+      setRules(data.rules || []);
+      setSelectedRoomId(current => current || data.rooms?.[0]?.id || '');
+      if ((data as any).sensor) {
+        setSensorData((data as any).sensor);
+      }
+      if ((data as any).camera_enabled !== undefined) {
+        setIsCameraEnabledState(Boolean((data as any).camera_enabled));
+      }
+      if ((data as any).active_layout_id) {
+        setActiveLayoutId((data as any).active_layout_id);
+      }
+      if ((data as any).layouts && Array.isArray((data as any).layouts) && (data as any).layouts.length > 0) {
+        setLayouts((data as any).layouts);
+      }
+      setBackendConnected(true);
+      setBackendVerifiedNotice('Connected to SEROS backend');
+    })();
+    refreshStateInFlight.current = request;
+    try {
+      await request;
+    } finally {
+      if (refreshStateInFlight.current === request) {
+        refreshStateInFlight.current = null;
+      }
     }
-    if ((data as any).camera_enabled !== undefined) {
-      setIsCameraEnabledState(Boolean((data as any).camera_enabled));
-    }
-    if ((data as any).active_layout_id) {
-      setActiveLayoutId((data as any).active_layout_id);
-    }
-    if ((data as any).layouts && Array.isArray((data as any).layouts) && (data as any).layouts.length > 0) {
-      setLayouts((data as any).layouts);
-    }
-    setBackendConnected(true);
-    setBackendVerifiedNotice('Connected to SEROS backend');
   };
 
   useEffect(() => {
@@ -304,7 +331,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                   };
                 }
               } else {
-                const r = d.relay || (d.quadrantNum ?? (d.quadrants?.[0] ?? 1));
+                const zone = d.quadrantNum ?? (d.quadrants?.[0] ?? 1);
+                const relayByZone: Record<number, number> = { 1: 3, 2: 2, 3: 1, 4: 4 };
+                const r = d.relay || relayByZone[zone] || zone;
                 if (r >= 1 && r <= 4 && typeof espData.relays[r - 1] === 'boolean') {
                   const relayOn = espData.relays[r - 1];
                   const nextStatus = relayOn ? 'ON' : 'OFF';
@@ -323,7 +352,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       } catch {}
     };
     syncEsp32Hardware();
-    const espTimer = setInterval(syncEsp32Hardware, 2000);
+    const espTimer = setInterval(syncEsp32Hardware, 800);
     return () => {
       active = false;
       clearInterval(espTimer);
@@ -404,13 +433,24 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const toggleDevice = (id: string) => {
     const device = devices.find(item => item.id === id);
-    if (!device) return;
-    serosApi.controlDevice(backendUrl, id, { on: device.status !== 'ON', manual_override: true })
+    if (!device || pendingDeviceCommands.current.has(id)) return;
+    const nextOn = device.status !== 'ON';
+    pendingDeviceCommands.current.add(id);
+    setDevices(prev => prev.map(item => item.id === id
+      ? { ...item, status: nextOn ? 'ON' : 'OFF' }
+      : item));
+    serosApi.controlDevice(backendUrl, id, { on: nextOn, manual_override: true })
       .then(updated => {
         setDevices(prev => prev.map(item => item.id === id ? updated : item));
         setBackendVerifiedNotice('Device state synchronized');
+        // Reconcile every client-visible device with the backend immediately.
+        void refreshState();
       })
-      .catch(error => setBackendVerifiedNotice(`Device control failed: ${error.message}`));
+      .catch(error => {
+        setDevices(prev => prev.map(item => item.id === id ? device : item));
+        setBackendVerifiedNotice(`Device control failed: ${error.message}`);
+      })
+      .finally(() => pendingDeviceCommands.current.delete(id));
   };
 
   const setDeviceSpeed = (id: string, speed: number) => {
@@ -452,7 +492,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setBackendVerifiedNotice('Device deleted successfully');
       void refreshState();
     } catch (err: any) {
-      setBackendVerifiedNotice(`Failed to delete device: ${err.message}`);
+      const message = err instanceof TypeError
+        ? 'Cannot reach backend. Connect the phone to the laptop network and start Django.'
+        : (err?.message || 'Delete request failed.');
+      setBackendVerifiedNotice(`Failed to delete device: ${message}`);
       throw err;
     }
   };

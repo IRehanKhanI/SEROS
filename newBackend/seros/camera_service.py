@@ -40,7 +40,7 @@ def set_camera_enabled(enabled: bool):
 
 
 def start_camera_service():
-    """Start background camera capture loop (runs every 3 seconds)."""
+    """Start background camera capture loop for fallback webcam capture."""
     global _service_thread, _running
     if _running:
         return
@@ -109,7 +109,9 @@ def _camera_loop():
                 if _active_cap is not None:
                     _active_cap.release()
                     _active_cap = None
-                time.sleep(3.0)
+                # External browser/mobile clients normally provide frames. Keep the
+                # fallback worker responsive when it owns the webcam too.
+                time.sleep(0.25)
                 continue
 
             fail_count = 0

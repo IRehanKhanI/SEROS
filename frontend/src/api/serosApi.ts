@@ -109,20 +109,46 @@ export interface CamerasResponse {
 
 export const serosApi = {
   async getState(baseUrl: string) {
-    const res = await fetch(`${baseUrl.replace(/\/+$/, '')}/api/state/`);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return await res.json();
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    try {
+      const res = await fetch(`${baseUrl.replace(/\/+$/, '')}/api/state/`, {
+        signal: controller.signal,
+        headers: { Accept: 'application/json' },
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        throw new Error('Backend state request timed out. Check the laptop hotspot connection.');
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeoutId);
+    }
   },
 
   async controlDevice(baseUrl: string, deviceId: string, payload: { on?: boolean; speed?: number; manual_override?: boolean }) {
-    const res = await fetch(`${baseUrl.replace(/\/+$/, '')}/api/devices/${encodeURIComponent(deviceId)}/control/`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-    return data.device;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    try {
+      const res = await fetch(`${baseUrl.replace(/\/+$/, '')}/api/devices/${encodeURIComponent(deviceId)}/control/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      return data.device;
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        throw new Error('Device command timed out. Check the backend and ESP32 network.');
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeoutId);
+    }
   },
 
   async addDevice(
@@ -197,9 +223,22 @@ export const serosApi = {
   },
 
   async deleteDevice(baseUrl: string, deviceId: string) {
-    const res = await fetch(`${baseUrl.replace(/\/+$/, '')}/api/devices/${encodeURIComponent(deviceId)}/`, {
-      method: 'DELETE',
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+    let res: Response;
+    try {
+      res = await fetch(`${baseUrl.replace(/\/+$/, '')}/api/devices/${encodeURIComponent(deviceId)}/`, {
+        method: 'DELETE',
+        signal: controller.signal,
+      });
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        throw new Error('Delete request timed out. Check that the backend is online.');
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeoutId);
+    }
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
     return data;
@@ -300,12 +339,17 @@ export const serosApi = {
   },
 
   // 8. Real-time YOLO Occupancy Detection
-  async detectOccupancy(baseUrl: string, imageBase64: string, sectionId?: string): Promise<OccupancyDetectionResult> {
+  async detectOccupancy(
+    baseUrl: string,
+    imageBase64: string,
+    sectionId?: string,
+    fast = true
+  ): Promise<OccupancyDetectionResult> {
     const cleanUrl = baseUrl.replace(/\/+$/, '');
     const res = await fetch(`${cleanUrl}/api/detect/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ image: imageBase64, section_id: sectionId }),
+      body: JSON.stringify({ image: imageBase64, section_id: sectionId, fast }),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.json();
@@ -519,4 +563,3 @@ export const serosApi = {
     return await res.json();
   },
 };
-
